@@ -1330,8 +1330,8 @@ export default function App() {
                   <div className="p-4 bg-gray-50 dark:bg-gray-800/40 rounded-2xl border border-gray-150 dark:border-gray-800/50 space-y-2 mt-4 text-[11px]">
                     <div className="flex justify-between">
                       <span className="font-bold">{language === "es" ? "Soporte Oficial:" : "Official Support:"}</span>
-                      <a href="mailto:soporte@teclingo.ai" className="text-[#0058bc] dark:text-blue-400 font-extrabold hover:underline">
-                        soporte@teclingo.ai
+                      <a href="mailto:soporte@teclingoingles.com" className="text-[#0058bc] dark:text-blue-400 font-extrabold hover:underline">
+                        soporte@teclingoingles.com
                       </a>
                     </div>
                     <div className="flex justify-between">

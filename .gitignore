@@ -9,5 +9,6 @@ coverage/
 *.mp3
 repomix-output.xml
 server.log
+google_docs/
 
 .vercel
