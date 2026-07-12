@@ -1,0 +1,580 @@
+export interface KnowledgeConcept {
+  id: string;
+  title: string;
+  titleEs: string;
+  category: "tense" | "conditional" | "preposition" | "modal" | "vocabulary" | "pronunciation" | "grammar" | "common_mistake";
+  level: "A1" | "A2" | "B1" | "B2" | "C1";
+  summary: string;
+  summaryEs: string;
+  formula: string;
+  examples: { correct: string; wrong: string; explanation: string }[];
+  tags: string[];
+}
+
+export const KNOWLEDGE_BASE: KnowledgeConcept[] = [
+  // ── TENSES ──────────────────────────────────────────────
+  {
+    id: "present-simple",
+    title: "Present Simple",
+    titleEs: "Presente Simple",
+    category: "tense",
+    level: "A1",
+    summary: "Used for habits, routines, facts, and permanent situations.",
+    summaryEs: "Se usa para hábitos, rutinas, hechos y situaciones permanentes.",
+    formula: "Subject + V(base) / V+s/es (3rd person singular)",
+    examples: [
+      { correct: "She drinks coffee every morning.", wrong: "She drink coffee every morning.", explanation: "3rd person singular (she) needs the -s inflection." },
+      { correct: "They play football on Sundays.", wrong: "They plays football on Sundays.", explanation: "Plural subjects do NOT add -s." },
+      { correct: "Water boils at 100°C.", wrong: "Water is boiling at 100°C.", explanation: "Scientific facts use present simple, not continuous." },
+    ],
+    tags: ["presente", "simple", "habits", "routines", "facts"],
+  },
+  {
+    id: "present-continuous",
+    title: "Present Continuous",
+    titleEs: "Presente Continuo",
+    category: "tense",
+    level: "A1",
+    summary: "Used for actions happening right now or temporary situations.",
+    summaryEs: "Se usa para acciones que ocurren ahora o situaciones temporales.",
+    formula: "Subject + am/is/are + V-ing",
+    examples: [
+      { correct: "I am studying English right now.", wrong: "I am study English right now.", explanation: "After am/is/are we need the -ing form, not the base form." },
+      { correct: "She is working from home this week.", wrong: "She working from home this week.", explanation: "Don't forget the auxiliary 'is' — it's required in continuous tenses." },
+      { correct: "They are cooking dinner.", wrong: "They cooking dinner.", explanation: "Missing auxiliary 'are' — continuous requires be + verb-ing." },
+    ],
+    tags: ["presente", "continuo", "happening now", "temporary"],
+  },
+  {
+    id: "present-perfect",
+    title: "Present Perfect",
+    titleEs: "Presente Perfecto",
+    category: "tense",
+    level: "B1",
+    summary: "Connects past action to present relevance. Used with 'ever', 'never', 'yet', 'already', 'since', 'for'.",
+    summaryEs: "Conecta una acción pasada con relevancia presente. Se usa con 'ever', 'never', 'yet', 'already', 'since', 'for'.",
+    formula: "Subject + have/has + past participle (V3)",
+    examples: [
+      { correct: "I have visited Paris three times.", wrong: "I have visited Paris three time.", explanation: "Countable noun 'times' needs to be plural." },
+      { correct: "She has already eaten.", wrong: "She has already ate.", explanation: "After have/has use the past participle (eaten), not the simple past (ate)." },
+      { correct: "We have known each other since 2010.", wrong: "We know each other since 2010.", explanation: "'Since' requires present perfect, not present simple." },
+    ],
+    tags: ["presente", "perfecto", "experiencias", "since", "for", "already", "yet"],
+  },
+  {
+    id: "past-simple",
+    title: "Past Simple",
+    titleEs: "Pasado Simple",
+    category: "tense",
+    level: "A2",
+    summary: "Completed actions in the past with a specific time reference.",
+    summaryEs: "Acciones completas en el pasado con una referencia temporal específica.",
+    formula: "Subject + V2 (regular: -ed) / irregular past form",
+    examples: [
+      { correct: "I went to the store yesterday.", wrong: "I goed to the store yesterday.", explanation: "'Go' is irregular — the past is 'went', not 'goed'." },
+      { correct: "She studied all night.", wrong: "She studyed all night.", explanation: "When a verb ends in 'y', change to 'i' before adding -ed (studied)." },
+      { correct: "We didn't eat breakfast.", wrong: "We didn't ate breakfast.", explanation: "After 'didn't' use the base form, not the past form." },
+    ],
+    tags: ["pasado", "simple", "completed", "yesterday", "ago"],
+  },
+  {
+    id: "past-continuous",
+    title: "Past Continuous",
+    titleEs: "Pasado Continuo",
+    category: "tense",
+    level: "A2",
+    summary: "Actions in progress at a specific moment in the past.",
+    summaryEs: "Acciones en progreso en un momento específico del pasado.",
+    formula: "Subject + was/were + V-ing",
+    examples: [
+      { correct: "I was reading when the phone rang.", wrong: "I was read when the phone rang.", explanation: "After was/were use the -ing form." },
+      { correct: "They were playing football at 5 PM.", wrong: "They was playing football at 5 PM.", explanation: "Plural subjects use 'were', not 'was'." },
+      { correct: "She was cooking while he was setting the table.", wrong: "She cooking while he setting the table.", explanation: "Missing auxiliary 'was' — continuous tenses always need be + verb-ing." },
+    ],
+    tags: ["pasado", "continuo", "was", "were", "interrupted"],
+  },
+  {
+    id: "past-perfect",
+    title: "Past Perfect",
+    titleEs: "Pasado Perfecto",
+    category: "tense",
+    level: "B2",
+    summary: "Action completed before another past action. The 'past of the past'.",
+    summaryEs: "Acción completada antes de otra acción pasada. El 'pasado del pasado'.",
+    formula: "Subject + had + past participle (V3)",
+    examples: [
+      { correct: "By the time I arrived, they had already left.", wrong: "By the time I arrived, they already left.", explanation: "When one past action happened before another, use past perfect for the earlier one." },
+      { correct: "She had never seen snow before that trip.", wrong: "She has never seen snow before that trip.", explanation: "If the reference point is in the past, use had (not has)." },
+      { correct: "We had finished dinner before the guests came.", wrong: "We had finished dinner before the guests had came.", explanation: "Only the earlier action uses past perfect; the later one uses simple past." },
+    ],
+    tags: ["pasado", "perfecto", "before", "already", "had", "sequence"],
+  },
+  {
+    id: "future-will",
+    title: "Future with 'Will'",
+    titleEs: "Futuro con 'Will'",
+    category: "tense",
+    level: "A1",
+    summary: "Spontaneous decisions, predictions, promises, and facts about the future.",
+    summaryEs: "Decisiones espontáneas, predicciones, promesas y hechos sobre el futuro.",
+    formula: "Subject + will + V(base)",
+    examples: [
+      { correct: "I will help you with that.", wrong: "I will helps you with that.", explanation: "After 'will' use the base form — never add -s." },
+      { correct: "It will probably rain tomorrow.", wrong: "It will probably rains tomorrow.", explanation: "'Will' is always followed by the base form." },
+      { correct: "She won't forget your birthday.", wrong: "She won't forgets your birthday.", explanation: "After won't (will not) use the base form." },
+    ],
+    tags: ["futuro", "will", "spontaneous", "prediction", "promise"],
+  },
+  {
+    id: "future-going-to",
+    title: "Future with 'Going to'",
+    titleEs: "Futuro con 'Going to'",
+    category: "tense",
+    level: "A2",
+    summary: "Plans, intentions, and predictions based on evidence.",
+    summaryEs: "Planes, intenciones y predicciones basadas en evidencia.",
+    formula: "Subject + am/is/are + going to + V(base)",
+    examples: [
+      { correct: "I am going to study medicine.", wrong: "I going to study medicine.", explanation: "Don't forget the auxiliary 'am' before 'going to'." },
+      { correct: "Look at those clouds — it's going to rain!", wrong: "Look at those clouds — it will rain!", explanation: "Evidence-based predictions use 'going to', not 'will'." },
+      { correct: "We are going to move to Madrid next year.", wrong: "We are going to moving to Madrid next year.", explanation: "After 'going to' use the base form, not -ing." },
+    ],
+    tags: ["futuro", "going to", "plans", "intentions", "evidence"],
+  },
+  // ── CONDITIONALS ──────────────────────────────────────────
+  {
+    id: "zero-conditional",
+    title: "Zero Conditional",
+    titleEs: "Condicional Cero",
+    category: "conditional",
+    level: "A2",
+    summary: "General truths and scientific facts. If X happens, Y always happens.",
+    summaryEs: "Verdades generales y hechos científicos. Si X sucede, Y siempre sucede.",
+    formula: "If + Present Simple, Present Simple",
+    examples: [
+      { correct: "If you heat water to 100°C, it boils.", wrong: "If you heat water to 100°C, it will boil.", explanation: "Zero conditional (general truth) uses present simple in both clauses, not 'will'." },
+      { correct: "If it rains, the ground gets wet.", wrong: "If it rains, the ground will get wet.", explanation: "For scientific facts, use present simple in both parts." },
+      { correct: "If you mix red and blue, you get purple.", wrong: "If you mix red and blue, you will get purple.", explanation: "General truths always use present + present." },
+    ],
+    tags: ["conditional", "zero", "scientific", "facts", "general truths"],
+  },
+  {
+    id: "first-conditional",
+    title: "First Conditional",
+    titleEs: "Primer Condicional",
+    category: "conditional",
+    level: "B1",
+    summary: "Real/possible situations in the future. If X happens, Y will happen.",
+    summaryEs: "Situaciones reales/posibles en el futuro. Si X sucede, Y sucederá.",
+    formula: "If + Present Simple, will + V(base)",
+    examples: [
+      { correct: "If it rains, I will stay home.", wrong: "If it will rain, I will stay home.", explanation: "Never use 'will' in the if-clause of a conditional." },
+      { correct: "If you study hard, you will pass the exam.", wrong: "If you will study hard, you will pass the exam.", explanation: "The if-clause uses present simple to refer to future time." },
+      { correct: "She will call you if she has time.", wrong: "She will call you if she will have time.", explanation: "The if-clause does not take 'will' — only the main clause does." },
+    ],
+    tags: ["conditional", "first", "real", "possible", "future"],
+  },
+  {
+    id: "second-conditional",
+    title: "Second Conditional",
+    titleEs: "Segundo Condicional",
+    category: "conditional",
+    level: "B1",
+    summary: "Hypothetical/unlikely present situations. Imagining different reality.",
+    summaryEs: "Situaciones hipotéticas/improbables en el presente. Imaginando una realidad diferente.",
+    formula: "If + Past Simple, would + V(base)",
+    examples: [
+      { correct: "If I had more money, I would travel the world.", wrong: "If I have more money, I would travel the world.", explanation: "Second conditional uses past simple (not present) in the if-clause." },
+      { correct: "If I were you, I would accept the offer.", wrong: "If I was you, I would accept the offer.", explanation: "In formal English, 'were' is used for all subjects in the second conditional." },
+      { correct: "She would learn Japanese if she lived in Tokyo.", wrong: "She would learn Japanese if she lives in Tokyo.", explanation: "The if-clause needs past simple (lived), not present simple (lives)." },
+    ],
+    tags: ["conditional", "second", "hypothetical", "unreal", "would"],
+  },
+  {
+    id: "third-conditional",
+    title: "Third Conditional",
+    titleEs: "Tercer Condicional",
+    category: "conditional",
+    level: "B2",
+    summary: "Regrets about the past. Imagining a different past outcome.",
+    summaryEs: "Arrepentimientos sobre el pasado. Imaginando un resultado pasado diferente.",
+    formula: "If + Past Perfect, would have + past participle (V3)",
+    examples: [
+      { correct: "If I had studied, I would have passed.", wrong: "If I studied, I would have passed.", explanation: "Third conditional requires past perfect (had studied), not simple past." },
+      { correct: "She would have been on time if she had left earlier.", wrong: "She would have been on time if she left earlier.", explanation: "Both clauses need their correct tenses: past perfect in if-clause, would have + V3 in main." },
+      { correct: "We wouldn't have missed the bus if we had run faster.", wrong: "We wouldn't have missed the bus if we would have run faster.", explanation: "Don't use 'would have' in the if-clause — use 'had' + past participle." },
+    ],
+    tags: ["conditional", "third", "regret", "past", "would have"],
+  },
+  {
+    id: "mixed-conditionals",
+    title: "Mixed Conditionals",
+    titleEs: "Condicionales Mixtos",
+    category: "conditional",
+    level: "C1",
+    summary: "Mixing time references — e.g., past cause → present result.",
+    summaryEs: "Mezclando referencias temporales — ej., causa pasada → resultado presente.",
+    formula: "If + Past Perfect, would + V(base) (or: If + Past Simple, would have + V3)",
+    examples: [
+      { correct: "If I had studied medicine, I would be a doctor now.", wrong: "If I studied medicine, I would be a doctor now.", explanation: "Past cause (didn't study) → present result (not a doctor) = past perfect + would + base." },
+      { correct: "If she spoke Chinese, she would have got the job.", wrong: "If she spoke Chinese, she would get the job.", explanation: "Present condition → past result = past simple + would have + V3." },
+      { correct: "If I hadn't eaten so much, I wouldn't feel sick now.", wrong: "If I didn't eat so much, I wouldn't feel sick now.", explanation: "Past action → present consequence uses past perfect in if-clause." },
+    ],
+    tags: ["conditional", "mixed", "mixed conditionals", "past present"],
+  },
+  // ── PREPOSITIONS ──────────────────────────────────────────
+  {
+    id: "prepositions-time",
+    title: "Prepositions of Time: IN, ON, AT",
+    titleEs: "Preposiciones de Tiempo: IN, ON, AT",
+    category: "preposition",
+    level: "A1",
+    summary: "IN for months/years/seasons, ON for days/dates, AT for specific times.",
+    summaryEs: "IN para meses/años/temporadas, ON para días/fechas, AT para horas específicas.",
+    formula: "IN + month/year/season/period | ON + day/date | AT + time",
+    examples: [
+      { correct: "I was born in March.", wrong: "I was born on March.", explanation: "Months use 'in' (in March, in July)." },
+      { correct: "The meeting is on Monday.", wrong: "The meeting is in Monday.", explanation: "Days of the week use 'on' (on Monday, on Friday)." },
+      { correct: "The class starts at 9 AM.", wrong: "The class starts in 9 AM.", explanation: "Specific clock times use 'at' (at 9 AM, at noon, at midnight)." },
+    ],
+    tags: ["prepositions", "time", "in", "on", "at", "basic"],
+  },
+  {
+    id: "prepositions-place",
+    title: "Prepositions of Place: IN, ON, AT",
+    titleEs: "Preposiciones de Lugar: IN, ON, AT",
+    category: "preposition",
+    level: "A1",
+    summary: "IN for enclosed spaces, ON for surfaces, AT for specific points.",
+    summaryEs: "IN para espacios cerrados, ON para superficies, AT para puntos específicos.",
+    formula: "IN + enclosed space | ON + surface | AT + specific point",
+    examples: [
+      { correct: "The book is on the table.", wrong: "The book is in the table.", explanation: "On top of a surface → 'on'." },
+      { correct: "She is in the kitchen.", wrong: "She is at the kitchen.", explanation: "Inside an enclosed room → 'in'." },
+      { correct: "We're meeting at the airport.", wrong: "We're meeting in the airport.", explanation: "Specific location as a meeting point → 'at'." },
+    ],
+    tags: ["prepositions", "place", "in", "on", "at", "location"],
+  },
+  {
+    id: "prepositions-common-errors",
+    title: "Common Preposition Errors",
+    titleEs: "Errores Comunes con Preposiciones",
+    category: "common_mistake",
+    level: "B1",
+    summary: "Many errors come from directly translating prepositions from Spanish to English.",
+    summaryEs: "Muchos errores vienen de traducir preposiciones directamente del español al inglés.",
+    formula: "Verb/Adjective + specific preposition (must be memorized)",
+    examples: [
+      { correct: "I'm interested in learning English.", wrong: "I'm interested on learning English.", explanation: "'Interested' always pairs with 'in'." },
+      { correct: "She depends on her family.", wrong: "She depends of her family.", explanation: "'Depend' always pairs with 'on'." },
+      { correct: "He apologized for being late.", wrong: "He apologized of being late.", explanation: "'Apologize' pairs with 'for', not 'of'." },
+    ],
+    tags: ["prepositions", "errors", "interested in", "depend on", "apologize for"],
+  },
+  // ── MODALS ──────────────────────────────────────────────
+  {
+    id: "modal-can-could",
+    title: "Can / Could",
+    titleEs: "Can / Could",
+    category: "modal",
+    level: "A2",
+    summary: "Can = present ability/permission. Could = past ability, polite requests, possibility.",
+    summaryEs: "Can = habilidad/permiso presente. Could = habilidad pasada, pedidos educados, posibilidad.",
+    formula: "can/could + V(base)",
+    examples: [
+      { correct: "I can speak English.", wrong: "I can speaks English.", explanation: "After modal verbs, always use the base form — no -s, -ing, or -ed." },
+      { correct: "Could you help me, please?", wrong: "Could you helping me, please?", explanation: "After modal verbs, use base form, not -ing." },
+      { correct: "She could swim when she was five.", wrong: "She could swam when she was five.", explanation: "After 'could', use base form 'swim', not past 'swam'." },
+    ],
+    tags: ["modals", "can", "could", "ability", "permission", "polite"],
+  },
+  {
+    id: "modal-must-have-to",
+    title: "Must / Have to / Had to",
+    titleEs: "Must / Have to / Had to",
+    category: "modal",
+    level: "A2",
+    summary: "Must = obligation (internal). Have to = obligation (external). Had to = past obligation.",
+    summaryEs: "Must = obligación (interna). Have to = obligación (externa). Had to = obligación pasada.",
+    formula: "must/have to + V(base) | had to + V(base) (past)",
+    examples: [
+      { correct: "I have to wear a uniform at work.", wrong: "I have to wears a uniform at work.", explanation: "After 'have to' use the base form." },
+      { correct: "You must not drive without a license.", wrong: "You must not drives without a license.", explanation: "Modal verbs are always followed by the base form." },
+      { correct: "She had to leave early yesterday.", wrong: "She had to leaved early yesterday.", explanation: "After 'had to' use the base form, not the past tense." },
+    ],
+    tags: ["modals", "must", "have to", "obligation", "permission"],
+  },
+  {
+    id: "modal-should",
+    title: "Should",
+    titleEs: "Should",
+    category: "modal",
+    level: "A2",
+    summary: "Advice, recommendations, and suggestions.",
+    summaryEs: "Consejos, recomendaciones y sugerencias.",
+    formula: "should + V(base)",
+    examples: [
+      { correct: "You should drink more water.", wrong: "You should drinks more water.", explanation: "After 'should' use the base form." },
+      { correct: "We shouldn't eat too much sugar.", wrong: "We shouldn't eats too much sugar.", explanation: "After should + not, use the base form." },
+      { correct: "He should study harder for the exam.", wrong: "He should studies harder for the exam.", explanation: "No -s after modal verbs, even with 3rd person singular." },
+    ],
+    tags: ["modals", "should", "advice", "recommendation"],
+  },
+  {
+    id: "modal-could-would-should",
+    title: "Could / Would / Should in polite English",
+    titleEs: "Could / Would / Should en inglés educado",
+    category: "modal",
+    level: "B1",
+    summary: "Using modals for politeness: Could you...? / Would you mind...? / You should try...",
+    summaryEs: "Usar modales para ser educado: ¿Podrías...? / ¿Te importaría...? / Deberías probar...",
+    formula: "Could/Would + you + V(base) ...? | You should + V(base)",
+    examples: [
+      { correct: "Could you open the window?", wrong: "Could you open the window?", explanation: "This is correct! 'Could you' is more polite than 'Can you'." },
+      { correct: "Would you mind closing the door?", wrong: "Would you mind to close the door?", explanation: "After 'mind' use -ing, not infinitive (to + V)." },
+      { correct: "You should try the pasta here.", wrong: "You should to try the pasta here.", explanation: "Modal verbs don't use 'to' before the main verb." },
+    ],
+    tags: ["modals", "polite", "could", "would", "would you mind"],
+  },
+  // ── GRAMMAR STRUCTURES ──────────────────────────────────
+  {
+    id: "used-to",
+    title: "Used to / Would",
+    titleEs: "Used to / Would (pasado habitual)",
+    category: "grammar",
+    level: "B1",
+    summary: "Past habits that no longer happen. 'Used to' for states and actions. 'Would' for repeated actions only.",
+    summaryEs: "Hábitos pasados que ya no ocurren. 'Used to' para estados y acciones. 'Would' solo para acciones repetidas.",
+    formula: "Subject + used to + V(base) | Subject + would + V(base) (actions only)",
+    examples: [
+      { correct: "I used to play football when I was young.", wrong: "I use to play football when I was young.", explanation: "It's 'used to' (with -d), not 'use to'." },
+      { correct: "She used to live in Madrid.", wrong: "She used to living in Madrid.", explanation: "After 'used to' use the base form, not -ing." },
+      { correct: "We would go fishing every summer.", wrong: "We used go fishing every summer.", explanation: "'Would' for past habits doesn't need 'to'; 'used to' does." },
+    ],
+    tags: ["grammar", "used to", "would", "past habits", "past routines"],
+  },
+  {
+    id: "gerunds-infinitives",
+    title: "Gerunds vs Infinitives",
+    titleEs: "Gerundios vs Infinitivos",
+    category: "grammar",
+    level: "B1",
+    summary: "Some verbs take -ing (enjoy, avoid, finish), others take to + V (want, decide, hope).",
+    summaryEs: "Algunos verbos toman -ing (enjoy, avoid, finish), otros toman to + V (want, decide, hope).",
+    formula: "verb + V-ing (gerund) | verb + to + V (infinitive)",
+    examples: [
+      { correct: "I enjoy swimming.", wrong: "I enjoy to swim.", explanation: "'Enjoy' always takes the gerund (-ing form)." },
+      { correct: "She decided to move to London.", wrong: "She decided moving to London.", explanation: "'Decide' always takes the infinitive (to + V)." },
+      { correct: "He finished writing the report.", wrong: "He finished to write the report.", explanation: "'Finish' takes the gerund, not the infinitive." },
+    ],
+    tags: ["gerunds", "infinitives", "verb patterns", "gerund", "infinitive", "enjoy", "decide"],
+  },
+  {
+    id: "articles-a-an-the",
+    title: "Articles: A, An, The",
+    titleEs: "Artículos: A, An, The",
+    category: "grammar",
+    level: "A1",
+    summary: "A/An = indefinite (first mention). The = definite (specific/known).",
+    summaryEs: "A/An = indefinido (primera mención). The = definido (específico/conocido).",
+    formula: "a + consonant sound | an + vowel sound | the + specific noun",
+    examples: [
+      { correct: "I saw a cat in the garden.", wrong: "I saw cat in garden.", explanation: "Unspecified nouns need an article." },
+      { correct: "She is an engineer.", wrong: "She is a engineer.", explanation: "'Engineer' starts with a vowel sound, so use 'an'." },
+      { correct: "The sun rises in the east.", wrong: "A sun rises in the east.", explanation: "Unique things (sun, moon) use 'the'." },
+    ],
+    tags: ["articles", "a", "an", "the", "definite", "indefinite"],
+  },
+  {
+    id: "passive-voice",
+    title: "Passive Voice",
+    titleEs: "Voz Pasiva",
+    category: "grammar",
+    level: "B1",
+    summary: "When the action is more important than who does it. Focus on the receiver of the action.",
+    summaryEs: "Cuando la acción es más importante que quién la realiza. Enfoque en el receptor de la acción.",
+    formula: "Subject + be + past participle (V3) + (by agent)",
+    examples: [
+      { correct: "The cake was baked by my mother.", wrong: "The cake was bake by my mother.", explanation: "After 'was/were' use the past participle (baked), not base form." },
+      { correct: "English is spoken in many countries.", wrong: "English is speak in many countries.", explanation: "Passive requires be + V3 (spoken), not base form (speak)." },
+      { correct: "The report has been completed.", wrong: "The report has been complete.", explanation: "Past participle is 'completed' (with -d), not 'complete'." },
+    ],
+    tags: ["passive", "voice", "was", "were", "been", "past participle"],
+  },
+  {
+    id: "reported-speech",
+    title: "Reported Speech",
+    titleEs: "Estilo Indirecto",
+    category: "grammar",
+    level: "B2",
+    summary: "Reporting what someone else said. Tenses usually shift back one step.",
+    summaryEs: "Reportar lo que alguien dijo. Los tiempos generalmente retroceden un paso.",
+    formula: "Subject + said (that) + shifted tense",
+    examples: [
+      { correct: "She said that she was tired.", wrong: "She said that she is tired.", explanation: "When reporting in past, shift present → past (is → was)." },
+      { correct: "He told me he had finished the work.", wrong: "He told me he has finished the work.", explanation: "Past perfect (had finished) doesn't shift further back." },
+      { correct: "They said they would come to the party.", wrong: "They said they will come to the party.", explanation: "Will → would in reported speech." },
+    ],
+    tags: ["reported speech", "indirect speech", "tense shift", "said", "told"],
+  },
+  // ── COMMON MISTAKES ──────────────────────────────────────
+  {
+    id: "common-its-its",
+    title: "It's vs Its",
+    titleEs: "It's vs Its (contracción vs posesivo)",
+    category: "common_mistake",
+    level: "A2",
+    summary: "It's = it is/it has. Its = possessive (like his/her).",
+    summaryEs: "It's = it is/it has. Its = posesivo (como su de él/ella).",
+    formula: "It's = contraction of 'it is' or 'it has' | Its = possessive pronoun",
+    examples: [
+      { correct: "The dog wagged its tail.", wrong: "The dog wagged it's tail.", explanation: "Possessive form has NO apostrophe (its), just like his, hers, theirs." },
+      { correct: "It's raining outside.", wrong: "Its raining outside.", explanation: "Contractions (it is = it's) need an apostrophe." },
+      { correct: "It's been a long day.", wrong: "Its been a long day.", explanation: "It's = it has here. Apostrophe is needed." },
+    ],
+    tags: ["common mistakes", "its", "it's", "apostrophe", "possessive"],
+  },
+  {
+    id: "common-than-then",
+    title: "Than vs Then",
+    titleEs: "Than vs Then (comparación vs temporal)",
+    category: "common_mistake",
+    level: "A2",
+    summary: "Than = comparison (bigger than). Then = sequence/next (first..., then...).",
+    summaryEs: "Than = comparación (más grande que). Then = secuencia/luego (primero..., luego...).",
+    formula: "than = comparison | then = time/sequence",
+    examples: [
+      { correct: "She is taller than her brother.", wrong: "She is taller then her brother.", explanation: "Comparisons use 'than', not 'then'." },
+      { correct: "We ate dinner, then watched a movie.", wrong: "We ate dinner, than watched a movie.", explanation: "Sequence/time order uses 'then', not 'than'." },
+      { correct: "I would rather walk than drive.", wrong: "I would rather walk then drive.", explanation: "'Rather...than' is a comparison structure." },
+    ],
+    tags: ["common mistakes", "than", "then", "comparison", "time"],
+  },
+  {
+    id: "common-subject-verb-agreement",
+    title: "Subject-Verb Agreement",
+    titleEs: "Concordancia Sujeto-Verbo",
+    category: "common_mistake",
+    level: "B1",
+    summary: "Singular subjects take singular verbs. Compound subjects (A and B) take plural verbs.",
+    summaryEs: "Sujetos singulares toman verbos singulares. Sujetos compuestos (A y B) toman verbos plurales.",
+    formula: "Singular subject + singular verb | Plural subject + plural verb",
+    examples: [
+      { correct: "The list of items is on the desk.", wrong: "The list of items are on the desk.", explanation: "The subject is 'list' (singular), not 'items'." },
+      { correct: "Neither the teacher nor the students were ready.", wrong: "Neither the teacher nor the students was ready.", explanation: "With 'neither...nor', the verb agrees with the nearest subject (students = plural)." },
+      { correct: "Everyone has their own opinion.", wrong: "Everyone have their own opinion.", explanation: "'Everyone' is singular and takes 'has'." },
+    ],
+    tags: ["subject verb agreement", "singular", "plural", "grammar", "concordance"],
+  },
+  {
+    id: "common-word-order",
+    title: "English Word Order",
+    titleEs: "Orden de Palabras en Inglés",
+    category: "common_mistake",
+    level: "A1",
+    summary: "English follows strict SVO order: Subject + Verb + Object. Adjectives go before nouns.",
+    summaryEs: "El inglés sigue el orden estricto SV: Sujeto + Verbo + Objeto. Los adjetivos van antes del sustantivo.",
+    formula: "S + V + O | Adj + Noun | Time/Manner/Place (in that order)",
+    examples: [
+      { correct: "She speaks English very well.", wrong: "She speaks very well English.", explanation: "Adverb of manner ('very well') goes after the object." },
+      { correct: "I have a big red car.", wrong: "I have a red big car.", explanation: "Opinion/size adjectives come before color adjectives." },
+      { correct: "He went to the store quickly.", wrong: "He went quickly to the store.", explanation: "Place ('to the store') comes before manner ('quickly')." },
+    ],
+    tags: ["word order", "SVO", "adjectives", "adverbs", "grammar basics"],
+  },
+  {
+    id: "common-question-form",
+    title: "Forming Questions",
+    titleEs: "Formación de Preguntas",
+    category: "common_mistake",
+    level: "A1",
+    summary: "English questions require auxiliary verbs (Do/Does/Did/Is/Are/Have) before the subject.",
+    summaryEs: "Las preguntas en inglés requieren verbos auxiliares (Do/Does/Did/Is/Are/Have) antes del sujeto.",
+    formula: "Auxiliary + Subject + V(base) + ...? | Wh-word + auxiliary + Subject + V(base) + ...?",
+    examples: [
+      { correct: "Do you like pizza?", wrong: "You like pizza?", explanation: "English questions need the auxiliary 'do' before the subject." },
+      { correct: "Where does she work?", wrong: "Where she works?", explanation: "Wh-questions place the auxiliary before the subject." },
+      { correct: "Did they arrive on time?", wrong: "Did they arrived on time?", explanation: "After 'did' use base form (arrive), not past (arrived)." },
+    ],
+    tags: ["questions", "auxiliary", "do", "does", "did", "wh-questions", "grammar"],
+  },
+  // ── VOCABULARY PATTERNS ──────────────────────────────────
+  {
+    id: "phrasal-verbs-common",
+    title: "Common Phrasal Verbs",
+    titleEs: "Verbos Fraseales Comunes",
+    category: "vocabulary",
+    level: "B1",
+    summary: "Verb + preposition/adverb combinations that create new meanings.",
+    summaryEs: "Combinaciones de verbo + preposición/adverbio que crean nuevos significados.",
+    formula: "verb + particle (separable or inseparable)",
+    examples: [
+      { correct: "I'll look into the problem.", wrong: "I'll look at the problem into.", explanation: "Phrasal verbs are fixed expressions — don't separate the particle from the verb." },
+      { correct: "Please turn off the light.", wrong: "Please turn the light off from.", explanation: "'Turn off' is a separable phrasal verb — the object can go between or after." },
+      { correct: "She gave up smoking.", wrong: "She gave smoking up.", explanation: "'Give up' is separable, but with pronouns the pronoun must go between." },
+    ],
+    tags: ["phrasal verbs", "look into", "turn off", "give up", "separable", "inseparable"],
+  },
+  {
+    id: "confusing-words",
+    title: "Commonly Confused Words",
+    titleEs: "Palabras Fácilmente Confundibles",
+    category: "vocabulary",
+    level: "B1",
+    summary: "Words that look or sound similar but have different meanings.",
+    summaryEs: "Palabras que se ven o suenan similar pero tienen significados diferentes.",
+    formula: "Different words with different meanings that are often mixed up",
+    examples: [
+      { correct: "I advice you to study more.", wrong: "I advice you to study more.", explanation: "'Advice' is a noun (the advice was good). Use 'advise' (verb) in this sentence." },
+      { correct: "Can you borrow me your pen?", wrong: "Can you borrow me your pen?", explanation: "'Borrow' = take temporarily. 'Lend' = give temporarily. Say: 'Can you lend me your pen?'" },
+      { correct: "The weather is really bad today.", wrong: "The weather is really badly today.", explanation: "'Bad' is an adjective (describes noun). 'Badly' is an adverb (describes verb)." },
+    ],
+    tags: ["confusing words", "advice", "advise", "borrow", "lend", "bad", "badly"],
+  },
+];
+
+export function searchKnowledgeBase(query: string): KnowledgeConcept[] {
+  const q = query.toLowerCase().trim();
+  if (!q) return [];
+
+  return KNOWLEDGE_BASE.filter((concept) => {
+    const searchable = [
+      concept.title,
+      concept.titleEs,
+      concept.summary,
+      concept.summaryEs,
+      concept.formula,
+      concept.category,
+      concept.level,
+      ...concept.tags,
+      ...concept.examples.map((e) => e.correct + " " + e.wrong + " " + e.explanation),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return q.split(/\s+/).every((word) => searchable.includes(word));
+  });
+}
+
+export function getConceptById(id: string): KnowledgeConcept | undefined {
+  return KNOWLEDGE_BASE.find((c) => c.id === id);
+}
+
+export function getConceptsByCategory(category: KnowledgeConcept["category"]): KnowledgeConcept[] {
+  return KNOWLEDGE_BASE.filter((c) => c.category === category);
+}
+
+export function getConceptsByLevel(level: KnowledgeConcept["level"]): KnowledgeConcept[] {
+  return KNOWLEDGE_BASE.filter((c) => c.level === level);
+}
+
+export const KB_CATEGORIES = [
+  { id: "tense" as const, label: "Tenses", labelEs: "Tiempos Verbales", icon: "⏰" },
+  { id: "conditional" as const, label: "Conditionals", labelEs: "Condicionales", icon: "🔀" },
+  { id: "preposition" as const, label: "Prepositions", labelEs: "Preposiciones", icon: "📍" },
+  { id: "modal" as const, label: "Modals", labelEs: "Modales", icon: "🔧" },
+  { id: "grammar" as const, label: "Grammar Structures", labelEs: "Estructuras Gramaticales", icon: "🏗️" },
+  { id: "vocabulary" as const, label: "Vocabulary", labelEs: "Vocabulario", icon: "📖" },
+  { id: "common_mistake" as const, label: "Common Mistakes", labelEs: "Errores Comunes", icon: "⚠️" },
+  { id: "pronunciation" as const, label: "Pronunciation", labelEs: "Pronunciación", icon: "🗣️" },
+] as const;

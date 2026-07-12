@@ -1,0 +1,10 @@
+{
+  "name": "Remix: Remix: TECLINGO  CLEAN VERSION v3",
+  "description": "AI-powered English learning platform featuring interactive AI Pronunciation Lab, AI Listening Lab, SafeZone Chat, AI Tutor, TOEFL Simulator, and Grammar Lab.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
