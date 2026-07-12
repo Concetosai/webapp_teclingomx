@@ -34,17 +34,13 @@ const PRESET_SUGGESTIONS = [
   "🧁 Describe your daily routine."
 ];
 
-// Local dictionary for "Traductor de Auxilio" translations
-const TRANSLATION_MAP: Record<string, string> = {
-  "Hello! I am Aura, your SafeZone partner. Let's practice spoken English without fear. What is on your mind today?": 
-    "¡Hola! Soy Aura, tu compañera de SafeZone. Practiquemos inglés hablado sin miedo. ¿Qué tienes en mente hoy?",
-  "Let's talk about travel plans.": 
-    "Hablemos de planes de viaje.",
-  "What movies do you recommend?": 
-    "¿Qué películas me recomiendas?",
-  "Describe your daily routine.": 
-    "Describe tu rutina diaria."
-};
+const MODE_CONFIG = {
+  basic: { label: "Safe Pace", cefr: "A1-A2", color: "emerald", desc: "10-14 palabras" },
+  casual: { label: "Casual Bridge", cefr: "B1-B2", color: "amber", desc: "16-22 palabras" },
+  native: { label: "Native Mode", cefr: "C1-C2", color: "blue", desc: "26-32 palabras" },
+} as const;
+
+type ConversationMode = keyof typeof MODE_CONFIG;
 
 export default function SafeZoneChat({ onBack }: Props) {
   // Chat core state
@@ -58,6 +54,7 @@ export default function SafeZoneChat({ onBack }: Props) {
   ]);
   const [userInput, setUserInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [conversationMode, setConversationMode] = useState<ConversationMode>("basic");
   
   // Custom states for cockpit simulation
   const [confidence, setConfidence] = useState<number>(50); // range 0-100
@@ -67,8 +64,10 @@ export default function SafeZoneChat({ onBack }: Props) {
   const [empatheticMotor, setEmpatheticMotor] = useState(true);
   const [softSuggestions, setSoftSuggestions] = useState(true);
   
-  // Translation toggle states for each message ID
+  // Translation states - auto-fetched from /api/translate
   const [translatedMessages, setTranslatedMessages] = useState<Record<string, boolean>>({});
+  const [translationCache, setTranslationCache] = useState<Record<string, string>>({});
+  const [translatingIds, setTranslatingIds] = useState<Record<string, boolean>>({});
   
   // Terminal logs simulation - Styled elegantly in a light tone
   const [hudLogs, setHudLogs] = useState<string[]>([
@@ -247,6 +246,7 @@ export default function SafeZoneChat({ onBack }: Props) {
         body: JSON.stringify({
           messages: currentHistory,
           scenario: "Casual conversational sandbox cockpit with friendly AI Aura. Supportive and constructive feedback.",
+          conversationMode,
           customSystemInstruction,
           customAppMasterInfo
         })
@@ -263,6 +263,9 @@ export default function SafeZoneChat({ onBack }: Props) {
       };
 
       setMessages(prev => [...prev, modelMsg]);
+      
+      // Auto-translate AI response in background
+      autoTranslateInBackground(modelMsg.id, modelMsg.content);
       
       if (data.evaluation) {
         setEvaluation(data.evaluation);
@@ -286,6 +289,7 @@ export default function SafeZoneChat({ onBack }: Props) {
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
         setMessages(prev => [...prev, modelMsg]);
+        autoTranslateInBackground(modelMsg.id, modelMsg.content);
         speakText(dummyReply, voiceSpeed === "lenta");
         
         setEvaluation({
@@ -300,15 +304,49 @@ export default function SafeZoneChat({ onBack }: Props) {
     }
   };
 
-  // Toggles translation helper
-  const handleToggleTranslation = (msgId: string, englishText: string) => {
-    const isNowTranslated = !translatedMessages[msgId];
-    setTranslatedMessages(prev => ({ ...prev, [msgId]: isNowTranslated }));
-    addHudLog(`TRANSLATION: ${isNowTranslated ? "Shown" : "Hidden"} helper translation`);
-    
-    if (isNowTranslated && !TRANSLATION_MAP[englishText]) {
-      // Lazy mock translation
-      TRANSLATION_MAP[englishText] = `Traducción sugerida: "${englishText}"`;
+  // Fetch translation from backend and toggle visibility
+  const handleToggleTranslation = async (msgId: string, englishText: string) => {
+    const isShowing = translatedMessages[msgId];
+    if (isShowing) {
+      setTranslatedMessages(prev => ({ ...prev, [msgId]: false }));
+      return;
+    }
+    // Fetch translation if not cached
+    if (!translationCache[msgId]) {
+      setTranslatingIds(prev => ({ ...prev, [msgId]: true }));
+      try {
+        const res = await fetch("/api/translate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: englishText })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setTranslationCache(prev => ({ ...prev, [msgId]: data.translation || englishText }));
+        }
+      } catch (e) {
+        console.warn("Translation failed:", e);
+      } finally {
+        setTranslatingIds(prev => ({ ...prev, [msgId]: false }));
+      }
+    }
+    setTranslatedMessages(prev => ({ ...prev, [msgId]: true }));
+  };
+
+  // Auto-fetch translation for an AI message in background
+  const autoTranslateInBackground = async (msgId: string, englishText: string) => {
+    try {
+      const res = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: englishText })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTranslationCache(prev => ({ ...prev, [msgId]: data.translation || "" }));
+      }
+    } catch (e) {
+      console.warn("Auto-translate failed:", e);
     }
   };
 
@@ -504,15 +542,41 @@ export default function SafeZoneChat({ onBack }: Props) {
           </div>
         </div>
 
-        {/* VOICE CONFIGURATION HUD CONTROLS */}
+        {/* VOICE + MODE CONFIGURATION HUD CONTROLS */}
         <div className="flex items-center gap-3">
+          {/* Conversation Mode Selector */}
+          <div className="flex items-center bg-white border border-slate-200 rounded-full p-1 shadow-xs">
+            {(Object.keys(MODE_CONFIG) as ConversationMode[]).map((mode) => {
+              const cfg = MODE_CONFIG[mode];
+              const isActive = conversationMode === mode;
+              return (
+                <button
+                  key={mode}
+                  onClick={() => {
+                    setConversationMode(mode);
+                    addHudLog(`MODE: Switched to ${cfg.label} (${cfg.cefr}, ${cfg.desc})`);
+                  }}
+                  className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded-full transition-all cursor-pointer ${
+                    isActive
+                      ? `bg-${cfg.color}-500 text-white shadow-xs`
+                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                  }`}
+                  style={isActive ? { backgroundColor: cfg.color === 'emerald' ? '#10b981' : cfg.color === 'amber' ? '#f59e0b' : '#3b82f6' } : {}}
+                  title={`${cfg.label} (${cfg.cefr}) - ${cfg.desc}`}
+                >
+                  {cfg.label}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="flex items-center bg-white border border-slate-200 rounded-full p-1 shadow-xs">
             <button
               onClick={toggleVoiceSpeed}
               className="text-[11px] font-bold uppercase text-slate-600 hover:text-[#4c4aca] px-3.5 py-1.5 rounded-full hover:bg-slate-50 transition-all cursor-pointer flex items-center gap-1.5"
             >
               <Volume2 size={13} className="text-[#4c4aca]" />
-              VOZ: VELOCIDAD {voiceSpeed.toUpperCase()}
+              VOZ: {voiceSpeed.toUpperCase()}
             </button>
             <button
               onClick={handleRespeakLastBotMessage}
@@ -703,7 +767,9 @@ export default function SafeZoneChat({ onBack }: Props) {
             {messages.map((m) => {
               const isUser = m.role === "user";
               const showTranslation = translatedMessages[m.id];
-              const translationText = TRANSLATION_MAP[m.content] || `Traducción aproximada: "${m.content}"`;
+              const translationText = translationCache[m.id] || "";
+              const isTranslating = translatingIds[m.id];
+              const wordCount = m.role === "model" ? m.content.split(/\s+/).filter(Boolean).length : 0;
 
               return (
                 <div key={m.id} className={`flex flex-col ${isUser ? "items-end" : "items-start"} space-y-1`}>
@@ -723,12 +789,17 @@ export default function SafeZoneChat({ onBack }: Props) {
 
                     {showTranslation && (
                       <div className="mt-3 pt-2.5 border-t border-slate-200 text-xs text-[#4c4aca] font-sans italic leading-relaxed bg-white p-2.5 rounded-lg border border-slate-100">
-                        {translationText}
+                        {isTranslating ? (
+                          <span className="text-slate-400 animate-pulse">Traduciendo...</span>
+                        ) : translationText}
                       </div>
                     )}
 
                     {!isUser && (
                       <div className="mt-2.5 flex items-center gap-2">
+                        <span className="text-[9px] font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">
+                          {wordCount} palabras
+                        </span>
                         <button
                           onClick={() => handleToggleTranslation(m.id, m.content)}
                           className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600 hover:text-[#4c4aca] bg-white hover:bg-slate-50 px-2.5 py-1 rounded-full border border-slate-200 cursor-pointer transition-colors"

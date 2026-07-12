@@ -1706,29 +1706,28 @@ Output strictly as JSON:
   // 3. SafeZone Chat API
   app.post("/api/gemini/chat", async (req, res) => {
     try {
-      const { messages, scenario, customSystemInstruction, customAppMasterInfo } = req.body;
+      const { messages, scenario, customSystemInstruction, customAppMasterInfo, conversationMode } = req.body;
       const targetScenario = scenario || "Ordering food at a New York restaurant";
-      
-      let systemInstruction = `You are an encouraging and supportive English conversation partner (Aura) in a cockpit-like bilingual console.
-The user is chatting with you in this context: "${targetScenario}".
-Your goal is to sustain a natural, immersive, and helpful conversation.
+      const mode = conversationMode || 'basic';
 
-Analyze the user's very last message for grammatical errors, spelling mistakes, or awkward phrasing, and provide a polite improvement or tip in Spanish. If the message has no errors and is perfectly natural, set isCorrect to true.
-
-Conversation history:
-${messages.map((m: any) => `${m.role === "user" ? "User" : "Aura"}: ${m.content}`).join("\n")}
-
-Respond to their last message and evaluate it.`;
-
-      if (customSystemInstruction && customSystemInstruction.trim().length > 0) {
-        systemInstruction += `\n\n[INSTRUCCIONES DE SISTEMA ADICIONALES]:\n${customSystemInstruction}`;
+      // Word limits per CEFR level (matching TECLINGO-V4 pattern)
+      let minWords = 10, maxWords = 14;
+      let levelLabel = 'A1-A2';
+      let temperature = 0.3;
+      let maxTokens = 128;
+      if (mode === 'casual') {
+        minWords = 16; maxWords = 22; levelLabel = 'B1-B2'; temperature = 0.6; maxTokens = 256;
+      } else if (mode === 'native') {
+        minWords = 26; maxWords = 32; levelLabel = 'C1-C2'; temperature = 0.75; maxTokens = 512;
       }
 
-      if (customAppMasterInfo && customAppMasterInfo.trim().length > 0) {
-        systemInstruction += `\n\n[FICHA TÉCNICA / INFORMACIÓN MASTER DE LA APLICACIÓN TECLINGO]:\n${customAppMasterInfo}`;
-      }
+      const LANG_LOCK = `\n\nSTRICT RESTRICTION: Do not answer under any circumstance in Spanish. Conduct 100% of the interaction in English.\nCRITICAL: NEVER include any Spanish translation inside your response block. The user interface handles translations externally. Your output MUST be 100% English text only under any circumstance.`;
 
-      // PRIMARY: Groq (always works)
+      const TTS_SYNC = `\n\nTTS SYNC: Every word you write will be read aloud by a speech engine. Never include markdown, stage directions, parenthetical asides, or any text that is not meant to be spoken. Your output is the exact voiceover script.`;
+
+      const MODE_PROMPT = `\n\nYOUR ONLY CONSTRAINT: Every reply MUST contain strictly between ${minWords} and ${maxWords} words. Express a complete, fluid thought within that range. This is CEFR level ${levelLabel}.`;
+
+      // PRIMARY: Groq
       const formattedContents = messages.map((m: any) => ({
         role: (m.role === "user" || m.role === "system") ? m.role : "assistant",
         content: m.content
@@ -1739,18 +1738,23 @@ Respond to their last message and evaluate it.`;
       }
 
       const groqMessages = [
-        { role: "system", content: `You are an encouraging English conversation partner named Aura in a cockpit-like bilingual console.
+        { role: "system", content: `You are Aura — a warm, intelligent native English conversationalist, not a tutor. You sound like a real adult friend having a genuine chat in a cockpit-like bilingual console.
 The user is chatting with you in this context: "${targetScenario}".
-Your goal is to sustain a natural, immersive, and helpful conversation.
+
+ABSOLUTE BANS:
+- Never repeat the same word or phrase across consecutive sentences.
+- Do NOT use filler crutches like "always", "journey", "perfectly", "absolutely", "truly", "indeed", "wonderful".
+- Do NOT include the user's name in every response. Use it sparingly and naturally.
+- Never sound like a template, advertisement, or customer-service bot.
 
 Analyze the user's very last message for grammatical errors, spelling mistakes, or awkward phrasing, and provide a polite improvement or tip in Spanish. If the message has no errors and is perfectly natural, set isCorrect to true.
-
+${MODE_PROMPT}${LANG_LOCK}${TTS_SYNC}
 ${customSystemInstruction && customSystemInstruction.trim().length > 0 ? `[INSTRUCCIONES ADICIONALES]: ${customSystemInstruction}` : ""}
 ${customAppMasterInfo && customAppMasterInfo.trim().length > 0 ? `[FICHA TECNICA]: ${customAppMasterInfo}` : ""}
 
 Format your final output as a JSON object matching this schema exactly:
 {
-  "reply": "string (conversational English reply)",
+  "reply": "string (conversational English reply, strictly ${minWords}-${maxWords} words)",
   "evaluation": {
     "isCorrect": boolean,
     "correctedText": "string (corrected user input)",
@@ -1767,13 +1771,26 @@ Format your final output as a JSON object matching this schema exactly:
         const chatCompletion = await groq.chat.completions.create({
           messages: groqMessages,
           model: "llama-3.3-70b-versatile",
+          temperature,
+          max_tokens: maxTokens,
           response_format: { type: "json_object" }
         });
 
         const responseText = chatCompletion.choices[0]?.message?.content || "{}";
-        return res.json(JSON.parse(responseText.trim()));
+        const parsed = JSON.parse(responseText.trim());
+        console.log(`[SafeZone Chat] Groq mode=${mode} (${minWords}-${maxWords} words)`);
+        return res.json(parsed);
       } catch (groqError: any) {
         console.warn("SafeZone Chat Groq failed, trying Gemini fallback:", groqError.message || groqError);
+
+        let systemInstruction = `You are an encouraging English conversation partner named Aura.
+The user is chatting with you in this context: "${targetScenario}".
+Your goal is to sustain a natural, immersive, and helpful conversation.
+Analyze the user's very last message for grammatical errors, spelling mistakes, or awkward phrasing, and provide a polite improvement or tip in Spanish.
+${MODE_PROMPT}${LANG_LOCK}${TTS_SYNC}`;
+        if (customSystemInstruction && customSystemInstruction.trim().length > 0) {
+          systemInstruction += `\n\n[INSTRUCCIONES ADICIONALES]:\n${customSystemInstruction}`;
+        }
 
         // FALLBACK: Gemini (may fail with PERMISSION_DENIED)
         try {
@@ -1818,6 +1835,28 @@ Format your final output as a JSON object matching this schema exactly:
     } catch (error: any) {
       console.log("SafeZone Chat API Outer Error:", error);
       res.status(500).json({ error: error.message || "Failed to generate chat response" });
+    }
+  });
+
+  // Translate endpoint (English -> Spanish via Groq)
+  app.post("/api/translate", async (req, res) => {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: "Text is required" });
+    try {
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: "You are a translator. Translate the given English text to natural Spanish. Return ONLY the translated text, no quotes, no metadata, no explanation." },
+          { role: "user", content: text }
+        ],
+        temperature: 0.3,
+        max_tokens: 200
+      });
+      const translation = completion.choices[0]?.message?.content?.trim() || "";
+      res.json({ translation });
+    } catch (error: any) {
+      console.error("[Translate] Error:", error);
+      res.status(502).json({ error: "Translation failed" });
     }
   });
 
