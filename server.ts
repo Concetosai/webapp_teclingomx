@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import Groq from "groq-sdk";
@@ -25,7 +24,7 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY || "gsk_dummy_key_to_prevent_startup_crash"
 });
 
-async function startServer() {
+export async function createApp() {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
 
@@ -2551,6 +2550,7 @@ Return strictly JSON:
 
   // Vite integration
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -2564,9 +2564,14 @@ Return strictly JSON:
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[TECLINGO AI] Server running on http://localhost:${PORT}`);
-  });
+  return app;
 }
 
-startServer();
+// Only listen when running locally (not on Vercel)
+if (!process.env.VERCEL) {
+  createApp().then((app) => {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`[TECLINGO AI] Server running on http://localhost:${PORT}`);
+    });
+  });
+}
