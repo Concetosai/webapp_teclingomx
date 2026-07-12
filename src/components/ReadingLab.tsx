@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { ArrowLeft, BookOpen, CheckCircle2, XCircle, HelpCircle, Sparkles, AlertCircle, Eye, EyeOff, Type as FontIcon, Bookmark } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle2, XCircle, HelpCircle, Sparkles, AlertCircle, Eye, EyeOff, Type as FontIcon, Bookmark, Volume2, Loader2 } from "lucide-react";
 import { ReadingResult } from "../types";
+import { useGoogleTTS } from "../hooks/useGoogleTTS";
 
 interface Props {
   onBack: () => void;
@@ -45,6 +46,26 @@ export default function ReadingLab({ onBack, onSaveVocabulary }: Props) {
 
   // Saved word trackers (visual feedback)
   const [savedWords, setSavedWords] = useState<string[]>([]);
+  
+  // TTS for article reading
+  const { speak: ttsSpeak, stop: ttsStop } = useGoogleTTS();
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const handleReadAloud = () => {
+    if (!result) return;
+    if (isSpeaking) {
+      ttsStop();
+      setIsSpeaking(false);
+      return;
+    }
+    setIsSpeaking(true);
+    ttsSpeak({
+      text: result.articleText,
+      speakingRate: 0.85,
+      onEnd: () => setIsSpeaking(false),
+      onError: () => setIsSpeaking(false),
+    });
+  };
 
   const handleGenerate = async () => {
     if (topicSource === "custom" && (customTopic.trim() === "" || customWordCount > 3)) {
@@ -322,9 +343,23 @@ export default function ReadingLab({ onBack, onSaveVocabulary }: Props) {
 
               {/* Title & Body */}
               <article className="prose max-w-none">
-                <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight mb-5 leading-snug">
-                  {result.title}
-                </h2>
+                <div className="flex items-start justify-between gap-4 mb-5">
+                  <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight leading-snug">
+                    {result.title}
+                  </h2>
+                  <button
+                    onClick={handleReadAloud}
+                    className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
+                      isSpeaking
+                        ? "bg-[#0058bc] text-white border-[#0058bc] shadow-md"
+                        : "bg-white border-gray-200 text-gray-600 hover:border-[#0058bc] hover:text-[#0058bc]"
+                    }`}
+                    title={isSpeaking ? "Detener lectura" : "Leer artículo en voz alta"}
+                  >
+                    {isSpeaking ? <Loader2 size={14} className="animate-spin" /> : <Volume2 size={14} />}
+                    {isSpeaking ? "Detener" : "Escuchar"}
+                  </button>
+                </div>
                 
                 <div className={`${fontClass} text-gray-800 font-serif whitespace-pre-line antialiased`}>
                   {result.articleText}

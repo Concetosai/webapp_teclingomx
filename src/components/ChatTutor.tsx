@@ -114,17 +114,19 @@ export default function ChatTutor({ onBack, language = "es" }: Props) {
     try {
       const customBehaviorRaw = localStorage.getItem("teclingo_secret_behavior");
       let systemInstruction = "";
+      let customAppMasterInfo = "";
       if (customBehaviorRaw) {
         try {
           const parsed = JSON.parse(customBehaviorRaw);
           systemInstruction = parsed.systemInstruction || "";
+          customAppMasterInfo = parsed.appMasterInfo || "";
         } catch {}
       }
 
       const res = await fetch("/api/tutor/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...messages, userMsg].map((m) => ({ role: m.role, content: m.content })), knowledgeContext, systemInstruction }),
+        body: JSON.stringify({ messages: [...messages, userMsg].map((m) => ({ role: m.role, content: m.content })), knowledgeContext, systemInstruction, customAppMasterInfo }),
       });
 
       if (!res.ok) throw new Error("Tutor API failed");

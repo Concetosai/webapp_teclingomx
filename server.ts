@@ -1879,6 +1879,37 @@ Respond with an elegant, clear, structured, and friendly explanation. Provide il
         tutorPrompt += `\n\n[FICHA TÉCNICA / INFORMACIÓN MASTER DE LA APLICACIÓN TECLINGO]:\n${customAppMasterInfo}`;
       }
 
+      const JSON_SCHEMA = `\n\nReturn a JSON object with this exact structure:
+{
+  "explanation": "string (Markdown-compatible clear explanation with beautiful formatting)",
+  "examples": [
+    { "sentence": "string (example sentence)", "concept": "string (Why this example illustrates the point)" }
+  ],
+  "quickQuiz": [
+    { "id": number, "question": "string", "options": ["string", "string", "string", "string"], "correctIndex": number, "explanation": "string" }
+  ],
+  "tutorTips": ["string", "string", "string"]
+}`;
+
+      // PRIMARY: Groq (always works)
+      try {
+        const chatCompletion = await groq.chat.completions.create({
+          messages: [
+            { role: "system", content: "You are Teclingo's Premium AI Tutor. Respond with an elegant, clear, structured, and friendly explanation. Provide illustrative side-by-side examples, a quick interactive 3-question quiz, and learning tips specifically targeted to their level. Output strictly in valid JSON format matching the schema." },
+            { role: "user", content: tutorPrompt + JSON_SCHEMA }
+          ],
+          model: "llama-3.3-70b-versatile",
+          response_format: { type: "json_object" }
+        });
+
+        const responseText = chatCompletion.choices[0]?.message?.content || "{}";
+        console.log(`[AI Tutor] Groq response for query: "${targetQuery.substring(0, 40)}..."`);
+        return res.json(JSON.parse(responseText.trim()));
+      } catch (groqError: any) {
+        console.warn("[AI Tutor] Groq failed, trying Gemini fallback:", groqError.message || groqError);
+      }
+
+      // FALLBACK: Gemini (may fail with PERMISSION_DENIED)
       try {
         const response = await ai.models.generateContent({
           model: "gemini-3.5-flash",
@@ -1929,12 +1960,12 @@ Respond with an elegant, clear, structured, and friendly explanation. Provide il
         const responseText = response.text || "{}";
         return res.json(JSON.parse(responseText.trim()));
       } catch (geminiError: any) {
-        console.log("AI Tutor API Gemini failed, running offline lesson generator:", geminiError.message || geminiError);
+        console.log("[AI Tutor] Gemini also failed, running offline lesson generator:", geminiError.message || geminiError);
         const localFallback = getFallbackTutorData(targetQuery, targetLevel);
         return res.json(localFallback);
       }
     } catch (error: any) {
-      console.log("AI Tutor API Outer Error:", error);
+      console.error("AI Tutor API Outer Error:", error);
       res.status(500).json({ error: error.message || "Failed to get tutor feedback" });
     }
   });
@@ -2154,9 +2185,43 @@ The article should be about 250-400 words long, beautifully structured, engaging
 Because the user does not know English correctly yet, ensure that you provide:
 1. A direct Spanish translation of the text.
 2. 4 essential, basic vocabulary terms related to the proposed topic, with simple English definitions, Spanish translations, and clear example sentences. Make them highly accessible and basic for a learner.
-3. 3 multiple-choice comprehension questions with explanation of answers.
+3. 10 multiple-choice comprehension questions testing reading comprehension, inference, vocabulary in context, and detail recall. Include clear explanations of answers.
 Return the result strictly in JSON.`;
 
+      const JSON_SCHEMA = `\n\nReturn a JSON object with this exact structure:
+{
+  "title": "string",
+  "articleText": "string (The full English article, 250-400 words)",
+  "translationText": "string (Full Spanish translation of the article)",
+  "vocabulary": [
+    { "term": "string", "definition": "string (Simple explanation)", "translation": "string (Spanish translation)", "example": "string (Original sentence illustrating the term)" }
+  ],
+  "questions": [
+    { "id": number, "questionText": "string", "options": ["string", "string", "string", "string"], "correctOptionIndex": number, "explanation": "string" }
+  ]
+}`;
+
+      // PRIMARY: Groq
+      try {
+        const systemMsg = "You are an expert English reading comprehension content creator. Generate engaging articles with vocabulary and comprehension questions. Output strictly valid JSON only. No markdown, no commentary.";
+        const chatCompletion = await groq.chat.completions.create({
+          messages: [
+            { role: "system", content: systemMsg },
+            { role: "user", content: prompt + JSON_SCHEMA }
+          ],
+          model: "llama-3.3-70b-versatile",
+          response_format: { type: "json_object" }
+        });
+
+        const responseText = chatCompletion.choices[0]?.message?.content || "{}";
+        const parsed = JSON.parse(responseText.trim());
+        console.log(`[Reading Lab] Groq generated article for topic: "${targetTopic}" (${(parsed.questions || []).length} questions)`);
+        return res.json(parsed);
+      } catch (groqError: any) {
+        console.warn("[Reading Lab] Groq failed, trying Gemini fallback:", groqError.message || groqError);
+      }
+
+      // FALLBACK: Gemini (may fail with PERMISSION_DENIED)
       try {
         const response = await ai.models.generateContent({
           model: "gemini-3.5-flash",
@@ -2196,7 +2261,7 @@ Return the result strictly in JSON.`;
                     },
                     required: ["id", "questionText", "options", "correctOptionIndex", "explanation"]
                   },
-                  description: "3 reading comprehension questions"
+                  description: "10 reading comprehension questions"
                 }
               },
               required: ["title", "articleText", "translationText", "vocabulary", "questions"]
@@ -2207,12 +2272,12 @@ Return the result strictly in JSON.`;
         const responseText = response.text || "{}";
         return res.json(JSON.parse(responseText.trim()));
       } catch (geminiError: any) {
-        console.log("Reading Lab API Gemini failed, running offline text builder:", geminiError.message || geminiError);
+        console.log("[Reading Lab] Gemini also failed, running offline text builder:", geminiError.message || geminiError);
         const localFallback = getFallbackReadingData(targetTopic, targetLevel);
         return res.json(localFallback);
       }
     } catch (error: any) {
-      console.log("Reading Lab API Outer Error:", error);
+      console.error("Reading Lab API Outer Error:", error);
       res.status(500).json({ error: error.message || "Failed to generate reading lab content" });
     }
   });
@@ -2429,7 +2494,7 @@ Escribe tu duda y con gusto te daré información. También puedes comunicarte d
   // POST /api/tutor/ask — Chat with the AI tutor (multi-turn conversation)
   app.post("/api/tutor/ask", async (req, res) => {
     try {
-      const { messages, knowledgeContext, systemInstruction } = req.body;
+      const { messages, knowledgeContext, systemInstruction, customAppMasterInfo } = req.body;
 
       if (!messages || !Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: "Messages array is required." });
@@ -2451,19 +2516,8 @@ CORE RULES:
 6. Keep explanations concise but thorough — aim for clarity over length.
 7. You have access to a knowledge base of English grammar concepts. Use the provided context to give accurate, structured answers.
 8. At the end of explanations, suggest 1-2 follow-up topics the student might want to explore.
-${systemInstruction ? `\n\n[ADDITIONAL INSTRUCTIONS]:\n${systemInstruction}` : ""}`;
-
-      let fullPrompt = systemPrompt + "\n\n";
-      if (knowledgeContext && knowledgeContext.trim().length > 0) {
-        fullPrompt += `[KNOWLEDGE BASE CONTEXT — Use this for accurate grammar explanations]:\n${knowledgeContext}\n\n`;
-      }
-
-      fullPrompt += "CONVERSATION HISTORY:\n";
-      for (const msg of messages) {
-        const role = msg.role === "user" ? "Student" : "Tutor";
-        fullPrompt += `${role}: ${msg.content}\n`;
-      }
-      fullPrompt += "\nTutor:";
+${systemInstruction ? `\n\n[ADDITIONAL INSTRUCTIONS]:\n${systemInstruction}` : ""}
+${customAppMasterInfo ? `\n\n[FICHA TÉCNICA / INFORMACIÓN MASTER DE LA APLICACIÓN TECLINGO]:\n${customAppMasterInfo}` : ""}`;
 
       try {
         const response = await groq.chat.completions.create({
