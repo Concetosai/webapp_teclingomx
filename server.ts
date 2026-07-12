@@ -117,37 +117,38 @@ app.use(express.json({ limit: "50mb" }));
 
       if (level === "word" || level === "palabra") {
         presets = [
-          "Comfortable",
-          "Schedule",
-          "Literally",
-          "Otorhinolaryngologist",
-          "Anemone",
-          "Mischievous"
+          "Hello",
+          "Thank you",
+          "Water",
+          "Please",
+          "Good morning",
+          "Apple"
         ];
       } else if (level === "phrase" || level === "frase") {
         presets = [
-          "An apple a day keeps the doctor away",
-          "A piece of cake",
-          "Thoroughly thoroughly throughout",
-          "Let's grab a coffee sometime",
-          "How's the weather over there?",
-          "Could you repeat that please?"
+          "How are you?",
+          "I am fine",
+          "Good morning",
+          "Nice to meet you",
+          "Can I have water?",
+          "Where is the bathroom?"
         ];
       } else if (level === "native" || level === "nativo") {
         presets = [
-          "The thoroughly thoughtful therapist thoroughly thought through the therapy.",
-          "She sells seashells by the seashore, and the shells she sells are surely seashells.",
-          "Worldwide web access requires stable connection schedules and comfortable settings.",
-          "Although he thought through the difficult task, he felt thoroughly exhausted afterwards."
+          "Could you please repeat that more slowly?",
+          "I would like to order a coffee please",
+          "What time does the movie start tonight?",
+          "I need to go to the pharmacy before it closes",
+          "The weather is really nice today"
         ];
       } else {
         presets = [
-          "Schedule",
-          "Comfortable",
-          "Literally",
-          "Otorhinolaryngologist",
-          "World Wide Web",
-          "Thoroughly thoroughly throughout"
+          "Hello",
+          "Thank you",
+          "Water",
+          "Please",
+          "Good morning",
+          "Apple"
         ];
       }
 
