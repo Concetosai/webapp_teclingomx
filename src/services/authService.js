@@ -4,7 +4,7 @@
 // ==========================================
 
 const GOOGLE_CLIENT_ID = '765600384773-tq06mk73fsvvqmae19mq4huio3l908ap.apps.googleusercontent.com';
-const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbydMrIQ_Q_jHWYBuHnsm4kQ-J-cJWCucrG2GEv4sWno4u_8JXrsiZmNs2_0xxSFtnrh9Q/exec';
+const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbxsoMMywdXmzliFZLXZkttNidaR7J4bGVxBzDXHh2BzNdg4aW-2gVO34vtkwwwoXDvHTA/exec';
 
 // Estado global del token
 let tokenClient = null;
