@@ -24,9 +24,8 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY || "gsk_dummy_key_to_prevent_startup_crash"
 });
 
-export async function createApp() {
-  const app = express();
-  app.use(express.json({ limit: "50mb" }));
+const app = express();
+app.use(express.json({ limit: "50mb" }));
 
   // API endpoints
   app.get("/api/health", (req, res) => {
@@ -2548,30 +2547,26 @@ Return strictly JSON:
     }
   });
 
-  // Vite integration
-  if (process.env.NODE_ENV !== "production") {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
+  // Vite integration (local dev only, skipped on Vercel)
+  if (!process.env.VERCEL) {
+    if (process.env.NODE_ENV !== "production") {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
 
-  return app;
-}
-
-// Only listen when running locally (not on Vercel)
-if (!process.env.VERCEL) {
-  createApp().then((app) => {
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`[TECLINGO AI] Server running on http://localhost:${PORT}`);
     });
-  });
-}
+  }
+
+export default app;
