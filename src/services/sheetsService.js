@@ -3,7 +3,7 @@
 // 📊 SERVICIO DE PERSISTENCIA EN GOOGLE SHEETS
 // ==========================================
 
-const SHEETS_API_URL = 'https://script.google.com/macros/s/AKfycbz84jBCg3sDh2E28u3ou5vHwUzfn9eAKKpoePde1Bhi-EpThWVGKINB5sSX6jfBa-z0Rw/exec';
+const SHEETS_API_URL = 'https://script.google.com/macros/s/AKfycbwmgtXGxEG0Lv6n99iWr-ZTDpAZv6llj5sk0XiPnZFLFHlJCRQ2xkhfDtLSNEmQg6OGqQ/exec';
 
 /**
  * Get current user email from localStorage

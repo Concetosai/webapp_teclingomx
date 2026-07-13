@@ -163,13 +163,20 @@ function fallbackToWebSpeech(
   const cleanText = text.replace(/\*\*/g, '').replace(/[🛡️🤖👾🤝✨⭐💬🔊]/g, '')
   const utterance = new SpeechSynthesisUtterance(cleanText)
   utterance.lang = 'en-US'
-  utterance.rate = rate
 
   const isMale = voiceName?.toLowerCase().includes('neural2-d') || voiceName?.toLowerCase().includes('male')
 
+  if (isMale) {
+    utterance.rate = Math.min(rate, 0.88)
+    utterance.pitch = 0.85
+  } else {
+    utterance.rate = rate
+    utterance.pitch = 1.0
+  }
+
   getEnglishVoices().then(englishVoices => {
     const preferred = isMale
-      ? ['google uk english male', 'daniel', 'alex', 'david', 'guy', 'male', 'natural']
+      ? ['microsoft david', 'google uk english male', 'daniel', 'alex', 'guy', 'google us english male', 'microsoft mark', 'microsoft james']
       : ['google us english', 'google uk english', 'google us', 'natural', 'samantha', 'susan', 'zira', 'microsoft', 'neural', 'premium', 'enhanced']
 
     let foundVoice: SpeechSynthesisVoice | null = null

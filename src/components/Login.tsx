@@ -19,7 +19,14 @@ interface LoginProps {
 }
 
 export default function Login({ onLoginSuccess, language, theme }: LoginProps) {
-  const [activeTab, setActiveTab] = useState<"login" | "register">("login");
+  const [activeTab, setActiveTab] = useState<"login" | "register">(() => {
+    const initial = localStorage.getItem("teclingo_initial_tab");
+    if (initial === "register") {
+      localStorage.removeItem("teclingo_initial_tab");
+      return "register";
+    }
+    return "login";
+  });
   
   // Login Form States
   const [loginEmail, setLoginEmail] = useState("");
@@ -227,6 +234,45 @@ export default function Login({ onLoginSuccess, language, theme }: LoginProps) {
           <p className="text-gray-400 dark:text-gray-500 font-bold text-xs uppercase tracking-wider mt-2">
             {language === "es" ? "Inmersión lingüística con IA" : "AI Linguistic Immersion"}
           </p>
+        </div>
+
+        {/* 🚀 BOTÓN GUEST REUBICADO AL TOP: ACCESO INVITADO DIRECTO */}
+        <div className="mb-6 space-y-3 bg-slate-50 dark:bg-slate-900/40 p-4 md:p-5 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800/80">
+          <button
+            type="button"
+            onClick={() => {
+              // Set the guest interaction count to 0 when entering guest mode
+              localStorage.setItem("teclingo_guest_interactions", "0");
+              onLoginSuccess({ 
+                name: language === "es" ? "Estudiante Invitado" : "Guest Student", 
+                email: "invitado@teclingo.com", 
+                role: "guest" 
+              });
+            }}
+            className="w-full cursor-pointer flex items-center justify-center gap-2 py-3.5 px-5 rounded-2xl bg-gradient-to-r from-teal-400 via-emerald-400 to-orange-400 hover:from-teal-300 hover:via-emerald-300 hover:to-orange-300 text-slate-950 font-black text-xs uppercase tracking-wider shadow-[0_6px_20px_rgba(16,185,129,0.3)] dark:shadow-[0_6px_20px_rgba(249,115,22,0.15)] transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.02] active:translate-y-0 active:scale-98 border-2 border-white/30"
+          >
+            <span className="text-slate-950 font-black">✨ {language === "es" ? "Probar gratis sin registrarme →" : "Try for free without registering →"}</span>
+          </button>
+
+          <p className="text-center text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-semibold">
+            {language === "es" ? (
+              <>
+                🔥 🔥 <strong className="text-gray-800 dark:text-gray-200">¡Siente el poder de la Inteligencia Artificial hoy mismo!</strong> Entra al instante y pon a prueba tu fluidez conversando en tiempo real con <strong className="text-teal-500 dark:text-teal-400">SafeZone Chat</strong>.
+              </>
+            ) : (
+              <>
+                🔥 🔥 <strong className="text-gray-800 dark:text-gray-200">Feel the power of Artificial Intelligence today!</strong> Enter instantly and put your fluency to the test by conversing in real-time with <strong className="text-teal-500 dark:text-teal-400">SafeZone Chat</strong>.
+              </>
+            )}
+          </p>
+        </div>
+
+        {/* Separator to differentiate Guest Mode vs Registered/Login */}
+        <div className="relative my-6 text-center">
+          <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-b border-gray-150 dark:border-gray-800"></span>
+          <span className="relative bg-white dark:bg-[#15161a] px-3 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+            {language === "es" ? "o accede con tu cuenta" : "or access with your account"}
+          </span>
         </div>
 
         {/* Tab Controls */}

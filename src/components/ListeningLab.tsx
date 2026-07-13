@@ -211,16 +211,19 @@ export default function ListeningLab({ onBack, onSaveVocabulary }: Props) {
       if (isMale) {
         const utterance = new SpeechSynthesisUtterance(line.text);
         utterance.lang = 'en-US';
-        utterance.rate = 0.9;
+        utterance.rate = 0.88;
+        utterance.pitch = 0.85;
 
         getEnglishVoicesPromise().then(voices => {
           if (fullDialogueRef.current.cancelled) return;
           const maleVoice = voices.find(v =>
-            v.name.toLowerCase().includes('david') ||
+            v.name.toLowerCase().includes('microsoft david') ||
+            v.name.toLowerCase().includes('google uk english male') ||
             v.name.toLowerCase().includes('daniel') ||
-            v.name.toLowerCase().includes('male') ||
-            v.name.toLowerCase().includes('mark') ||
-            v.name.toLowerCase().includes('guy')
+            v.name.toLowerCase().includes('guy') ||
+            v.name.toLowerCase().includes('alex') ||
+            v.name.toLowerCase().includes('microsoft mark') ||
+            v.name.toLowerCase().includes('microsoft james')
           ) || voices[0];
           if (maleVoice) utterance.voice = maleVoice;
 
@@ -366,12 +369,17 @@ export default function ListeningLab({ onBack, onSaveVocabulary }: Props) {
     if (isMale) {
       const utterance = new SpeechSynthesisUtterance(line.text);
       utterance.lang = 'en-US';
-      utterance.rate = 0.85;
+      utterance.rate = 0.82;
+      utterance.pitch = 0.85;
       getEnglishVoicesPromise().then(voices => {
         const maleVoice = voices.find(v =>
-          v.name.toLowerCase().includes('david') ||
+          v.name.toLowerCase().includes('microsoft david') ||
+          v.name.toLowerCase().includes('google uk english male') ||
           v.name.toLowerCase().includes('daniel') ||
-          v.name.toLowerCase().includes('male')
+          v.name.toLowerCase().includes('guy') ||
+          v.name.toLowerCase().includes('alex') ||
+          v.name.toLowerCase().includes('microsoft mark') ||
+          v.name.toLowerCase().includes('microsoft james')
         ) || voices[0];
         if (maleVoice) utterance.voice = maleVoice;
         utterance.onend = () => setDictadoPlaying(false);

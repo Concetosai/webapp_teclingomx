@@ -30,7 +30,7 @@ const CONFIG = {
 
 /**
  * Guarda un nuevo usuario en la hoja 'Usuarios'
- * @param {Object} datosUsuario - {nombre, email, nivel, progreso, telefono, plan}
+ * @param {Object} datosUsuario - {nombre, email, nivel, progreso, telefono, plan, picture, id_google}
  * @returns {Object} { success, mensaje, emailEnviado }
  */
 function guardarUsuario(datosUsuario) {
@@ -38,37 +38,54 @@ function guardarUsuario(datosUsuario) {
     const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID)
                                .getSheetByName(CONFIG.SHEET_NAMES.USERS);
     
-    // Verificar si el email ya existe (evitar duplicados)
-    const emails = sheet.getRange('C:C').getValues().flat();
-    if (emails.includes(datosUsuario.email)) {
-      return { 
-        error: true, 
-        mensaje: `El email ${datosUsuario.email} ya está registrado.` 
-      };
+    // Verificar si el email ya existe
+    const data = sheet.getDataRange().getValues();
+    const now = new Date().toISOString();
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][2] === datosUsuario.email) {
+        // Usuario ya existe - actualizar ultimo_acceso y metodo_registro
+        const row = i + 1;
+        sheet.getRange(row, 9).setValue(now);                                    // ultimo_acceso (col I)
+        if (datosUsuario.metodo_registro) {
+          sheet.getRange(row, 10).setValue(datosUsuario.metodo_registro);        // metodo_registro (col J)
+        }
+        if (datosUsuario.id_google) {
+          sheet.getRange(row, 11).setValue(datosUsuario.id_google);              // id_google (col K)
+        }
+        if (datosUsuario.picture) {
+          // Guardar picture como metadato si hay columna extra
+        }
+        return { 
+          success: true, 
+          mensaje: `Usuario ${datosUsuario.email} ya existe. ultimo_acceso actualizado.`,
+          existing: true
+        };
+      }
     }
     
-    // Agregar nueva fila
+    // Agregar nueva fila con TODAS las 11 columnas
     sheet.appendRow([
-      new Date().toISOString(),        // timestamp
-      datosUsuario.nombre,             // nombre
-      datosUsuario.email,              // email
-      datosUsuario.nivel || 'A1',      // nivel (MCER)
-      datosUsuario.progreso || '0',    // progreso (%)
-      datosUsuario.telefono || '',     // teléfono
-      datosUsuario.plan || 'Basic',    // plan de suscripción
-      'Activo'                         // estado de la cuenta
+      now,                                        // timestamp (col A)
+      datosUsuario.nombre,                        // nombre (col B)
+      datosUsuario.email,                         // email (col C)
+      datosUsuario.nivel || 'A1',                 // nivel (col D)
+      datosUsuario.progreso || '0',               // progreso (col E)
+      datosUsuario.telefono || '',                // telefono (col F)
+      datosUsuario.plan || 'Basic',               // plan (col G)
+      'Activo',                                   // estado (col H)
+      now,                                        // ultimo_acceso (col I)
+      datosUsuario.metodo_registro || 'form',     // metodo_registro (col J)
+      datosUsuario.id_google || ''                // id_google (col K)
     ]);
     
     // Registrar en log de actividad
     registrarActividad('Nuevo usuario', datosUsuario.email);
     
-    // Enviar email de bienvenida
-    const emailResultado = enviarEmailBienvenida(datosUsuario);
-    
     return { 
       success: true, 
       mensaje: `Usuario ${datosUsuario.nombre} registrado exitosamente.`,
-      emailEnviado: emailResultado.success
+      existing: false
     };
     
   } catch (error) {
@@ -554,7 +571,10 @@ function doPost(e) {
           email: params.email,
           nivel: 'A1',
           progreso: '0',
-          plan: 'Basic'
+          plan: 'Basic',
+          metodo_registro: 'google',
+          id_google: params.id_google || '',
+          picture: params.picture || ''
         });
         break;
         

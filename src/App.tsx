@@ -76,6 +76,9 @@ interface UserStats {
   grammarChecks: number;
   weeklyActivity: { [key: string]: number };
   toeflScores: { [key: string]: number };
+  bonusCreditsRemaining?: number;
+  hasClaimedWelcomeBonus?: boolean;
+  hasEnrolledSummer?: boolean;
 }
 
 export default function App() {
@@ -91,6 +94,22 @@ export default function App() {
 
   // Popup state for Terms, Privacy, Support, and Summer Course
   const [activeModal, setActiveModal] = useState<"terms" | "privacy" | "support" | "summer" | "secret" | "notifications" | null>(null);
+  const [summerStep, setSummerStep] = useState<"details" | 1 | 2 | 3>("details");
+  const [enrollFormData, setEnrollFormData] = useState({
+    nombre: "",
+    nivelEscolar: "Secundaria",
+    metaPrincipal: "Hablar con fluidez",
+    tiempoDedicacion: "3-5 horas por semana",
+    metodoPago: "card"
+  });
+  const [guestInteractions, setGuestInteractions] = useState(() => {
+    return parseInt(localStorage.getItem("teclingo_guest_interactions") || "0", 10);
+  });
+
+  const closeActiveModal = () => {
+    setActiveModal(null);
+    setSummerStep("details");
+  };
 
   // Secret portal security and navigation states
   const [isSecretUnlocked, setIsSecretUnlocked] = useState(false);
@@ -130,17 +149,93 @@ export default function App() {
     return parsed;
   });
 
-  const [courseDB, setCourseDB] = useState<{ id: string; level: string; topic: string; desc: string; duration: string }[]>(() => {
-    const raw = localStorage.getItem("teclingo_secret_course_db");
+interface CourseLevelDB {
+  id: string;
+  level: string;
+  tag: string;
+  topic: string;
+  desc: string;
+  duration: string;
+  grammarFocus: string;
+  technicalVocabulary: string;
+  canDoStatement: string;
+}
+
+const INITIAL_COURSE_DB: CourseLevelDB[] = [
+  {
+    id: "level-a1",
+    level: "A1",
+    tag: "Básico",
+    duration: "20 Horas",
+    topic: "Presentaciones e Ingeniería de Campo",
+    desc: "Vocabulario básico, estructuras simples, saludar a otros ingenieros y describir componentes físicos en el taller.",
+    grammarFocus: "Present Simple, Pronouns, Basic Prepositions (in, on, at)",
+    technicalVocabulary: "Tools, Hardware parts, Basic colors/dimensions, Safety gear",
+    canDoStatement: "El estudiante puede identificar herramientas básicas de trabajo y describir su entorno técnico inmediato con frases sencillas."
+  },
+  {
+    id: "level-a2",
+    level: "A2",
+    tag: "Pre-Intermedio",
+    duration: "24 Horas",
+    topic: "Sistemas de Automatización y Reportes",
+    desc: "Redacción de reportes simples de fallas técnicas, procesos automatizados y operaciones lógicas.",
+    grammarFocus: "Past Simple, Imperatives for instructions, Comparative adjectives",
+    technicalVocabulary: "Sensors, Basic coding logic (if/else), Log messages, Errors",
+    canDoStatement: "El estudiante puede reportar fallas comunes de un sistema y dar instrucciones secuenciales simples para resolver problemas."
+  },
+  {
+    id: "level-b1",
+    level: "B1",
+    tag: "Intermedio",
+    duration: "30 Horas",
+    topic: "Gestión de Proyectos de Software y SCRUM",
+    desc: "Conversaciones sobre metodologías ágiles, sprints, requerimientos de software y arquitectura del sistema.",
+    grammarFocus: "Present Perfect, Modal verbs for obligation/permission (must, should, can), Passive Voice basics",
+    technicalVocabulary: "Sprint backlog, User stories, API endpoints, Deployment workflows",
+    canDoStatement: "El estudiante puede participar en Daily Standups, justificar retrasos técnicos y describir las tareas completadas en un bloque de trabajo."
+  },
+  {
+    id: "level-b2",
+    level: "B2",
+    tag: "Intermedio Alto",
+    duration: "35 Horas",
+    topic: "Defensa de Patentes y Artículos Científicos",
+    desc: "Comprensión de patentes avanzadas, redacción de abstracts científicos y justificación teórica de hipótesis.",
+    grammarFocus: "Conditionals (1st, 2nd, 3rd), Passive Voice advanced, Gerunds vs Infinitives",
+    technicalVocabulary: "Intellectual property, Variables, Data distribution, Frameworks",
+    canDoStatement: "El estudiante puede argumentar la innovación técnica de un desarrollo y debatir la viabilidad de una arquitectura de software frente a un comité."
+  },
+  {
+    id: "level-c1",
+    level: "C1",
+    tag: "Avanzado / Profesional",
+    duration: "40 Horas",
+    topic: "Arquitectura Cloud Empresarial y Negociación de SLA",
+    desc: "Diseño de sistemas distribuidos complejos a gran escala, discusión de acuerdos de nivel de servicio (SLA) y auditorías de seguridad internacional.",
+    grammarFocus: "Inversion with negative adverbials, Mixed Conditionals, Subjunctive mood for formal requests",
+    technicalVocabulary: "High availability, Microservices orchestration, Disaster recovery, Compliance regulations (GDPR/ISO)",
+    canDoStatement: "El estudiante puede liderar juntas técnicas con clientes internacionales, negociar contratos de infraestructura en la nube y resolver crisis críticas de producción sin ambigüedades."
+  },
+  {
+    id: "level-c2",
+    level: "C2",
+    tag: "Maestría / Nativo Técnico",
+    duration: "50 Horas",
+    topic: "Dirección de Innovación (CTO Headship) y Keynotes Globales",
+    desc: "Liderazgo de estrategias tecnológicas multi-regionales, ponencias magistrales en conferencias globales y redacción de políticas de gobernanza de Inteligencia Artificial.",
+    grammarFocus: "Advanced ellipsis and substitution, Complex narrative tenses, Nuances of tone and idiom integration",
+    technicalVocabulary: "Quantum computing paradigms, Ethical AI frameworks, Mergers & Acquisitions tech audits, Disruptive tech macro-trends",
+    canDoStatement: "El estudiante puede expresarse con total fluidez de manera espontánea, captando matices sutiles del lenguaje de negocios y tecnología, equivalentes a un directivo nativo de Silicon Valley."
+  }
+];
+
+  const [courseDB, setCourseDB] = useState<CourseLevelDB[]>(() => {
+    const raw = localStorage.getItem("teclingo_secret_course_db_v2");
     if (raw) {
       try { return JSON.parse(raw); } catch (e) {}
     }
-    return [
-      { id: "1", level: "A1 (Básico)", topic: "Presentaciones e Ingeniería de Campo", desc: "Vocabulario básico, estructuras simples, saludar a otros ingenieros y describir componentes físicos en el taller.", duration: "20 Horas" },
-      { id: "2", level: "A2 (Pre-Intermedio)", topic: "Sistemas de Automatización y Reportes", desc: "Redacción de reportes simples de fallas técnicas, procesos automatizados, y operaciones lógicas.", duration: "24 Horas" },
-      { id: "3", level: "B1 (Intermedio)", topic: "Gestión de Proyectos de Software y SCRUM", desc: "Conversaciones sobre metodologías ágiles, sprints, requerimientos de software y arquitectura del sistema.", duration: "30 Horas" },
-      { id: "4", level: "B2 (Intermedio Alto)", topic: "Defensa de Patentes y Artículos Científicos", desc: "Comprensión de patentes avanzadas, redacción de abstracts científicos y justificación teórica de hipótesis.", duration: "35 Horas" }
-    ];
+    return INITIAL_COURSE_DB;
   });
 
   const [toolsSettings, setToolsSettings] = useState(() => {
@@ -170,7 +265,7 @@ export default function App() {
   }, [behaviorSettings]);
 
   useEffect(() => {
-    localStorage.setItem("teclingo_secret_course_db", JSON.stringify(courseDB));
+    localStorage.setItem("teclingo_secret_course_db_v2", JSON.stringify(courseDB));
   }, [courseDB]);
 
   useEffect(() => {
@@ -237,9 +332,17 @@ export default function App() {
         const statsKey = `teclingo_user_${parsedUser.email}_stats`;
         const storedStats = localStorage.getItem(statsKey);
         if (storedStats) {
-          setUserStats(JSON.parse(storedStats));
+          const stats = JSON.parse(storedStats);
+          // If they are a registered free user and have not claimed the welcome bonus yet, award it
+          if ((parsedUser.role === "user" || parsedUser.role === "google") && stats.hasClaimedWelcomeBonus === undefined) {
+            stats.bonusCreditsRemaining = 12;
+            stats.hasClaimedWelcomeBonus = true;
+            localStorage.setItem(statsKey, JSON.stringify(stats));
+          }
+          setUserStats(stats);
         } else {
           // Initialize stats with template defaults
+          const isRegisteredFreeUser = parsedUser.role === "user" || parsedUser.role === "google";
           const initialStats: UserStats = {
             streak: 5,
             lastActiveDate: new Date().toISOString().slice(0, 10),
@@ -247,7 +350,9 @@ export default function App() {
             savedWords: [],
             grammarChecks: 0,
             weeklyActivity: { Mon: 2, Tue: 4, Wed: 1, Thu: 5, Fri: 3, Sat: 2, Sun: 3 },
-            toeflScores: {}
+            toeflScores: {},
+            bonusCreditsRemaining: isRegisteredFreeUser ? 12 : undefined,
+            hasClaimedWelcomeBonus: isRegisteredFreeUser ? true : undefined
           };
           localStorage.setItem(statsKey, JSON.stringify(initialStats));
           setUserStats(initialStats);
@@ -398,6 +503,14 @@ export default function App() {
   ];
 
   const handleEnterLab = (labId: string) => {
+    // Safety check for Guest users accessing locked labs
+    if (currentUser?.role === "guest" && !["chat", "listening", "pronunciation"].includes(labId)) {
+      localStorage.removeItem("teclingo_user");
+      localStorage.setItem("teclingo_initial_tab", "register");
+      window.location.reload();
+      return;
+    }
+
     setCurrentLab(labId as any);
 
     // Increment practice counts & update streak when entering any lab
@@ -406,6 +519,11 @@ export default function App() {
 
     // Increment total practices
     updatedStats.totalPractices = (updatedStats.totalPractices || 0) + 1;
+
+    // Decrement welcome bonus credits if active and remaining
+    if ((currentUser?.role === "user" || currentUser?.role === "google") && updatedStats.bonusCreditsRemaining !== undefined && updatedStats.bonusCreditsRemaining > 0) {
+      updatedStats.bonusCreditsRemaining = updatedStats.bonusCreditsRemaining - 1;
+    }
 
     // Update weekly activity
     const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -441,6 +559,7 @@ export default function App() {
 
   const handleExitLab = () => {
     setCurrentLab(null);
+    setGuestInteractions(parseInt(localStorage.getItem("teclingo_guest_interactions") || "0", 10));
   };
 
   // Translations
@@ -472,8 +591,16 @@ export default function App() {
           const statsKey = `teclingo_user_${userData.email}_stats`;
           const storedStats = localStorage.getItem(statsKey);
           if (storedStats) {
-            setUserStats(JSON.parse(storedStats));
+            const stats = JSON.parse(storedStats);
+            // If they are a registered free user and have not claimed the welcome bonus yet, award it
+            if ((userData.role === "user" || userData.role === "google") && stats.hasClaimedWelcomeBonus === undefined) {
+              stats.bonusCreditsRemaining = 12;
+              stats.hasClaimedWelcomeBonus = true;
+              localStorage.setItem(statsKey, JSON.stringify(stats));
+            }
+            setUserStats(stats);
           } else {
+            const isRegisteredFreeUser = userData.role === "user" || userData.role === "google";
             const initialStats: UserStats = {
               streak: 5,
               lastActiveDate: new Date().toISOString().slice(0, 10),
@@ -481,10 +608,19 @@ export default function App() {
               savedWords: [],
               grammarChecks: 0,
               weeklyActivity: { Mon: 2, Tue: 4, Wed: 1, Thu: 5, Fri: 3, Sat: 2, Sun: 3 },
-              toeflScores: {}
+              toeflScores: {},
+              bonusCreditsRemaining: isRegisteredFreeUser ? 12 : undefined,
+              hasClaimedWelcomeBonus: isRegisteredFreeUser ? true : undefined
             };
             localStorage.setItem(statsKey, JSON.stringify(initialStats));
             setUserStats(initialStats);
+          }
+
+          // Guest Interceptor: if user was trying to enroll before registering, reopen summer course
+          if (localStorage.getItem("teclingo_enroll_after_register") === "true") {
+            localStorage.removeItem("teclingo_enroll_after_register");
+            setActiveModal("summer");
+            setSummerStep(1);
           }
         }}
         language={language}
@@ -631,11 +767,27 @@ export default function App() {
                   setCurrentUser(null);
                   localStorage.removeItem("teclingo_user");
                 }}
-                className="text-gray-500 dark:text-gray-400 p-2 rounded-full hover:bg-rose-50 dark:hover:bg-rose-950/20 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer flex items-center justify-center shrink-0 hidden lg:flex"
+                className="text-gray-500 dark:text-gray-400 p-2 rounded-full hover:bg-rose-50 dark:hover:rose-950/20 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer flex items-center justify-center shrink-0 hidden lg:flex"
                 title={language === "es" ? "Cerrar Sesión" : "Log Out"}
               >
                 <LogOut size={18} />
               </button>
+            )}
+
+            {/* 💰 CRÉDITOS RESTANTES - Indicador numérico en barra superior */}
+            {(currentUser?.role === "user" || currentUser?.role === "google") && userStats.bonusCreditsRemaining !== undefined && userStats.bonusCreditsRemaining > 0 && (
+              <div className="hidden lg:flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800/60 shrink-0" title={`${language === "es" ? "Créditos restantes" : "Remaining credits"}: ${3 + userStats.bonusCreditsRemaining}`}>
+                <span className="text-emerald-600 dark:text-emerald-400 font-black text-xs">{3 + userStats.bonusCreditsRemaining}</span>
+                <span className="text-emerald-500 dark:text-emerald-400 text-[9px] font-bold uppercase tracking-wider">{language === "es" ? "créditos" : "credits"}</span>
+              </div>
+            )}
+
+            {/* 🔒 FREE GUEST MODE - Badge indicador en barra superior */}
+            {currentUser?.role === "guest" && (
+              <div className="hidden lg:flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/30 px-3 py-1.5 rounded-full border border-amber-200 dark:border-amber-800/60 shrink-0" title={language === "es" ? "Modo invitado: acceso limitado" : "Guest mode: limited access"}>
+                <span className="text-amber-600 dark:text-amber-400 text-[9px] font-bold uppercase tracking-wider">⚡ {language === "es" ? "Modo Free" : "Free Mode"}</span>
+                <span className="text-amber-500 dark:text-amber-400 font-black text-xs">{Math.max(0, 3 - guestInteractions)}</span>
+              </div>
             )}
 
             {/* Profile Avatar always visible */}
@@ -717,6 +869,59 @@ export default function App() {
                     </p>
                   </div>
                 </div>
+
+                {/* 🔒 AVISO FREE GUEST - Límites de cuenta en sidebar */}
+                {currentUser?.role === "guest" && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-2xl border border-amber-200 dark:border-amber-800/50 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Lock size={14} className="text-amber-600 dark:text-amber-400" />
+                      <span className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                        {language === "es" ? "Cuenta Free / Invitado" : "Free / Guest Account"}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-amber-700 dark:text-amber-300 font-semibold leading-relaxed">
+                      {language === "es" 
+                        ? "Tu cuenta no incluye simuladores avanzados (TOEFL, Grammar, Reading, Vocabulary, Tutor) ni inscripción al Curso de Verano. ¡Regístrate gratis para desbloquear todo!"
+                        : "Your account does not include advanced simulators (TOEFL, Grammar, Reading, Vocabulary, Tutor) or Summer Course enrollment. Sign up for free to unlock everything!"}
+                    </p>
+                    <p className="text-[9px] text-amber-600 dark:text-amber-400 font-bold">
+                      {language === "es" 
+                        ? `⚡ Te quedan ${Math.max(0, 3 - guestInteractions)} prácticas libres de 3 diarias`
+                        : `⚡ ${Math.max(0, 3 - guestInteractions)} free practices remaining of 3 daily`}
+                    </p>
+                    <button
+                      onClick={() => {
+                        localStorage.removeItem("teclingo_user");
+                        localStorage.setItem("teclingo_initial_tab", "register");
+                        window.location.reload();
+                      }}
+                      className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
+                    >
+                      {language === "es" ? "REGISTRARME GRATIS →" : "SIGN UP FREE →"}
+                    </button>
+                  </div>
+                )}
+
+                {/* 💰 AVISO CRÉDITOS - Sidebar para usuarios registrados */}
+                {(currentUser?.role === "user" || currentUser?.role === "google") && userStats.bonusCreditsRemaining !== undefined && userStats.bonusCreditsRemaining > 0 && (
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-200 dark:border-emerald-800/50 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={14} className="text-emerald-600 dark:text-emerald-400" />
+                      <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                        {language === "es" ? "Créditos de Bienvenida" : "Welcome Credits"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{3 + userStats.bonusCreditsRemaining}</span>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">{language === "es" ? "disponibles" : "available"}</span>
+                    </div>
+                    <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                      {language === "es" 
+                        ? "3 diarias + 12 de bienvenida. Se deducen por cada práctica."
+                        : "3 daily + 12 welcome bonus. Deducted per practice."}
+                    </p>
+                  </div>
+                )}
 
                 {/* Preferences inside sidebar */}
                 <div className="space-y-3">
@@ -944,6 +1149,8 @@ export default function App() {
           <LibraryPanel 
             savedVocabulary={userStats.savedWords} 
             onRemoveVocabulary={handleRemoveVocabulary} 
+            userRole={currentUser?.role}
+            onSaveVocabulary={handleSaveVocabulary}
           />
         ) : activeTab === "premium" ? (
           <PremiumPanel language={language} />
@@ -989,37 +1196,327 @@ export default function App() {
               </p>
             </header>
 
-            {/* 8 Labs Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {CARDS.map((card, idx) => (
-                <div 
-                  key={card.id}
-                  className="card-hover apple-fade-in group relative h-auto min-h-[320px] md:h-[420px] rounded-3xl overflow-hidden bg-white dark:bg-[#15161a] border border-gray-100 dark:border-gray-800/80 flex flex-col justify-between"
-                  style={{ animationDelay: `${(idx + 1) * 0.05}s` }}
-                >
-                  {/* Decorative illustrative header area */}
-                  <div className={`flex-grow flex items-center justify-center relative overflow-hidden p-6 ${card.bgClass} dark:bg-gray-900/35 border-b ${card.borderClass} dark:border-gray-800/60`}>
-                    <div className="absolute inset-0 opacity-25 bg-gradient-to-br from-white to-transparent dark:from-black/10"></div>
-                    <img 
-                      alt={card.title} 
-                      className="w-[85%] h-auto max-h-[180px] object-contain z-10 transition-transform duration-700 group-hover:scale-105 filter drop-shadow-sm" 
-                      src={card.imageUrl}
-                    />
+            {/* 🎁 TARJETA INFORMATIVA: BENEFICIOS DE LA VERSIÓN FREE */}
+            {currentUser?.role === "guest" && (
+              <motion.div 
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+                className="w-full rounded-3xl bg-gradient-to-br from-slate-900 via-[#0a0f1d] to-slate-950 border border-slate-800 p-6 text-white shadow-2xl relative overflow-hidden text-left"
+              >
+                <div className="absolute top-0 right-0 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-10 -left-10 w-60 h-60 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none opacity-40" />
+
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 relative z-10">
+                  <div className="space-y-4 max-w-3xl text-left">
+                    <div className="flex flex-wrap items-center gap-2 justify-start">
+                      <span className="bg-gradient-to-r from-teal-400 to-emerald-400 text-slate-950 text-[10px] font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider shadow-md animate-pulse">
+                        {language === "es" ? "Modo Demo Activo" : "Demo Mode Active"}
+                      </span>
+                      <span className="bg-slate-800/80 text-slate-300 text-[10px] font-black px-3.5 py-1.5 rounded-full border border-slate-700/60 uppercase tracking-wider">
+                        ⚡ {language === "es" 
+                          ? `Te quedan ${Math.max(0, 3 - guestInteractions)} prácticas libres` 
+                          : `${Math.max(0, 3 - guestInteractions)} free practices remaining`}
+                      </span>
+                    </div>
+
+                    <h3 className="text-xl md:text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-teal-200">
+                      {language === "es" 
+                        ? "🎁 ¡Regístrate Gratis por Email y Obtén +12 Créditos Extra!" 
+                        : "🎁 Register Free via Email and Get +12 Extra Credits!"}
+                    </h3>
+
+                    <p className="text-xs text-slate-400 font-medium leading-relaxed max-w-2xl text-left">
+                      {language === "es"
+                        ? "No dejes que tu progreso se borre al salir. Crea tu cuenta gratuita usando tu correo electrónico y desbloquea instantáneamente un total de 15 prácticas libres para usar hoy mismo sin restricciones."
+                        : "Don't let your progress get erased when you leave. Create your free account using your email and instantly unlock a total of 15 free practices to use today without restrictions."}
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
+                      <div className="flex items-start gap-2.5 bg-slate-800/30 p-3 rounded-2xl border border-slate-800/60 text-left">
+                        <span className="text-teal-400 font-black text-sm">✓</span>
+                        <div className="space-y-0.5 text-left">
+                          <p className="font-bold text-white">
+                            {language === "es" ? "Bono de Registro: 12 Créditos" : "Welcome Bonus: 12 Credits"}
+                          </p>
+                          <p className="text-[11px] text-slate-400 leading-normal">
+                            {language === "es" ? "Cargados de inmediato para tu primer día." : "Loaded immediately for your first day."}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2.5 bg-slate-800/30 p-3 rounded-2xl border border-slate-800/60 text-left">
+                        <span className="text-teal-400 font-black text-sm">✓</span>
+                        <div className="space-y-0.5 text-left">
+                          <p className="font-bold text-white">
+                            {language === "es" ? "3 Prácticas Diarias" : "3 Daily Practices"}
+                          </p>
+                          <p className="text-[11px] text-slate-400 leading-normal">
+                            {language === "es" ? "Se renuevan automáticamente cada 24 horas." : "Renewed automatically every 24 hours."}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2.5 bg-slate-800/30 p-3 rounded-2xl border border-slate-800/60 text-left">
+                        <span className="text-teal-400 font-black text-sm">✓</span>
+                        <div className="space-y-0.5 text-left">
+                          <p className="font-bold text-white">
+                            {language === "es" ? "Acceso Ampliado" : "Expanded Access"}
+                          </p>
+                          <p className="text-[11px] text-slate-400 leading-normal">
+                            {language === "es" ? "Desbloquea el AI Tutor 24/7 y Centro de Vocabulario." : "Unlock the 24/7 AI Tutor and Vocabulary Center."}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2.5 bg-slate-800/20 p-3 rounded-2xl border border-slate-900/60 text-left">
+                        <span className="text-orange-400 font-black text-sm">⚠</span>
+                        <div className="space-y-0.5 text-left">
+                          <p className="font-bold text-slate-300">
+                            {language === "es" ? "Límites Free" : "Free Limits"}
+                          </p>
+                          <p className="text-[11px] text-slate-500 leading-normal font-semibold">
+                            {language === "es" ? "No incluye simuladores avanzados (TOEFL) ni Cursos de Verano." : "Does not include advanced simulators (TOEFL) or Summer Courses."}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Info card footer */}
-                  <div className="p-6 bg-white dark:bg-[#15161a] shrink-0">
-                    <h3 className="font-extrabold text-gray-950 text-base group-hover:text-[#0058bc] transition-colors">{card.title}</h3>
-                    <p className="text-gray-400 text-[11px] font-semibold mt-1 leading-normal">{card.desc}</p>
-                    <button 
-                      onClick={() => handleEnterLab(card.id)}
-                      className="flex items-center text-[#0058bc] font-bold text-xs mt-4 hover:translate-x-1.5 transition-transform"
+                  <div className="flex flex-col items-center justify-center bg-slate-900/50 border border-slate-800 rounded-3xl p-6 text-center min-w-[260px] lg:max-w-xs shadow-inner relative overflow-hidden group/btn shrink-0">
+                    <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 to-emerald-500/5 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                    
+                    <span className="text-[10px] text-slate-400 uppercase tracking-widest font-black mb-3">
+                      {language === "es" ? "Asegura tu progreso" : "Secure your progress"}
+                    </span>
+                    
+                    <button
+                      onClick={() => {
+                        localStorage.removeItem("teclingo_user");
+                        localStorage.setItem("teclingo_initial_tab", "register");
+                        window.location.reload();
+                      }}
+                      className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-teal-400 via-emerald-400 to-orange-400 hover:from-teal-300 hover:via-emerald-300 hover:to-orange-300 text-slate-950 font-black text-xs uppercase tracking-wider transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] shadow-xl shadow-emerald-500/10 cursor-pointer border-2 border-white/20 active:translate-y-0 active:scale-98"
                     >
-                      {navText.enterBtn} <ArrowRight size={13} className="ml-1" />
+                      {language === "es" ? "REGISTRARME GRATIS NOW →" : "REGISTER FOR FREE NOW →"}
                     </button>
+                    
+                    <span className="text-[10px] text-slate-500 font-bold mt-3 uppercase tracking-wide">
+                      {language === "es" ? "> CONTINUANDO CON LA VERSIÓN GRATUITA" : "> CONTINUING WITH THE FREE VERSION"}
+                    </span>
                   </div>
                 </div>
-              ))}
+              </motion.div>
+            )}
+
+            {/* ✨ NUEVA SECCIÓN: ESTADO FREE (¡Recién registrado! Celebra sus 15 créditos iniciales) */}
+            {(currentUser?.role === "user" || currentUser?.role === "google") && userStats.bonusCreditsRemaining !== undefined && userStats.bonusCreditsRemaining > 0 && (
+              <motion.div 
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+                className="w-full rounded-3xl bg-gradient-to-br from-slate-900 via-emerald-950/40 to-slate-900 border border-emerald-500/30 p-6 text-white shadow-2xl relative overflow-hidden text-left"
+              >
+                <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none opacity-40" />
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
+                  <div className="space-y-2 text-left">
+                    <div className="flex flex-wrap items-center gap-2 justify-start">
+                      <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                        {language === "es" ? "✓ Cuenta Activada por Email" : "✓ Email Verified"}
+                      </span>
+                      <span className="text-amber-400 text-xs font-black uppercase tracking-wider animate-pulse">
+                        🎉 {language === "es" ? "¡Bono de Bienvenida cargado!" : "Welcome Bonus loaded!"}
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-bold text-white">
+                      {language === "es" ? (
+                        <>Tienes <span className="text-emerald-400 text-2xl font-black">{3 + (userStats.bonusCreditsRemaining || 0)}</span> interacciones disponibles en tu cuenta.</>
+                      ) : (
+                        <>You have <span className="text-emerald-400 text-2xl font-black">{3 + (userStats.bonusCreditsRemaining || 0)}</span> interactions available in your account.</>
+                      )}
+                    </h3>
+                    <p className="text-xs text-slate-400 max-w-2xl leading-relaxed text-left">
+                      {language === "es" 
+                        ? "Disfruta de tus 12 créditos de regalo de bienvenida por email más tus 3 prácticas diarias automáticas. ¡A por ese éxito del primer día perfeccionando tu inglés con IA!" 
+                        : "Enjoy your 12 email welcome bonus credits plus your 3 automatic daily practices. Let's make your first day a success in perfecting your English with AI!"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-4 bg-slate-900/80 border border-slate-800 p-4 rounded-2xl sm:min-w-[180px] justify-center shadow-lg shrink-0">
+                    <div className="text-center">
+                      <span className="block text-3xl font-black text-emerald-400">{3 + (userStats.bonusCreditsRemaining || 0)}</span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mt-1">
+                        {language === "es" ? "Saldo Restante" : "Remaining Balance"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* 8 Labs Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {(() => {
+                const cardDetails: Record<string, { extendedFunction: string; targetGoal: string }> = {
+                  pronunciation: {
+                    extendedFunction: "Interactive pronunciation evaluator with real-time phonetic feedback and IPA analysis.",
+                    targetGoal: "Develop a neutral, professional accent for international engineering presentations."
+                  },
+                  listening: {
+                    extendedFunction: "Immersive audio comprehension with realistic engineering dialogues and automated quizzes.",
+                    targetGoal: "Understand technical conversations, meetings, and presentations in English."
+                  },
+                  chat: {
+                    extendedFunction: "Private conversation space with an AI auditor that detects errors and guides you empathetically.",
+                    targetGoal: "Practice daily conversations and improve fluency in a safe, judgment-free zone."
+                  },
+                  tutor: {
+                    extendedFunction: "AI-powered personalized tutor that adapts to your learning pace and engineering background.",
+                    targetGoal: "Receive customized lessons and feedback to accelerate your language development."
+                  },
+                  toefl: {
+                    extendedFunction: "Complete TOEFL simulator with calibrated scoring rubrics and instant technical feedback.",
+                    targetGoal: "Achieve your target TOEFL score for academic and professional certification."
+                  },
+                  grammar: {
+                    extendedFunction: "Automated grammar analysis with contextual corrections and detailed technical explanations.",
+                    targetGoal: "Master complex grammatical structures used in technical documentation and reports."
+                  },
+                  reading: {
+                    extendedFunction: "Interactive technical readings and engineering texts with smart quizzes and instant translations.",
+                    targetGoal: "Understand technical manuals, project documentation, and engineering literature in English."
+                  },
+                  vocabulary: {
+                    extendedFunction: "Dynamic space with interactive flashcards to assimilate specialized engineering vocabulary.",
+                    targetGoal: "Memorize and correctly apply key terms from your engineering field in real work scenarios."
+                  }
+                };
+
+                return CARDS.map((card, idx) => {
+                  const isLockedForGuest = currentUser?.role === "guest" && !["chat", "listening", "pronunciation"].includes(card.id);
+
+                  return (
+                    <div 
+                      key={card.id}
+                      className="group relative h-[450px] rounded-3xl overflow-hidden bg-white dark:bg-[#15161a] border-2 border-slate-200 dark:border-slate-800/80 flex flex-col justify-between shadow-[0_8px_0px_#cbd5e1] dark:shadow-[0_8px_0px_#222328] hover:shadow-[0_12px_0px_#0058bc] dark:hover:shadow-[0_12px_0px_#3b82f6] hover:-translate-y-1.5 transition-all duration-300"
+                    >
+                      {/* 🔒 CAPA VISUAL DE CANDADO CON HOVER DINÁMICO (FOMO EFECT) */}
+                      {isLockedForGuest && (
+                        <div className="absolute inset-0 z-30 bg-slate-950/80 backdrop-blur-[2px] flex flex-col items-center justify-center p-5 text-center transition-all duration-300">
+                          
+                          {/* 👁️ VISTA 1: ESTADO NORMAL (Limpio y directo) */}
+                          <div className="flex flex-col items-center justify-center transition-all duration-300 group-hover:opacity-0 group-hover:scale-95 group-hover:absolute">
+                            <div className="mb-4 rounded-full bg-amber-500 text-white p-3.5 shadow-lg shadow-amber-500/30 animate-bounce">
+                              <Lock size={22} className="stroke-[2.5]" />
+                            </div>
+                            <h4 className="text-white font-black text-sm uppercase tracking-wider">
+                              {language === "es" ? "Desbloquea este lab" : "Unlock this lab"}
+                            </h4>
+                            <p className="text-[11px] text-slate-300 mt-2 font-bold max-w-[200px] leading-relaxed">
+                              {language === "es" 
+                                ? "Pasa el mouse para conocer los detalles del laboratorio." 
+                                : "Hover to learn more details about this lab."}
+                            </p>
+                          </div>
+
+                          {/* 🪄 VISTA 2: DETALLES AL PASAR EL MOUSE */}
+                          <div className="opacity-0 scale-95 pointer-events-none transition-all duration-300 group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto flex flex-col h-full w-full justify-between text-left absolute inset-0 bg-slate-950/95 p-6 rounded-3xl">
+                            
+                            {/* Contenedor del Mensaje y Datos */}
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-1.5 border-b border-slate-800 pb-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                                <span className="text-[10px] font-black uppercase text-cyan-400 tracking-widest">
+                                  {language === "es" ? "Vista Previa" : "Preview"}
+                                </span>
+                              </div>
+                              
+                              {/* Información dinámica del objeto mapeado */}
+                              <div>
+                                <h4 className="text-sm font-black text-white tracking-tight">{card.title}</h4>
+                                <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                                  <strong className="text-slate-400 font-semibold">{language === "es" ? "Función:" : "Function:"}</strong> {cardDetails[card.id]?.extendedFunction || card.desc}
+                                </p>
+                              </div>
+
+                              <div className="bg-slate-900/60 border border-slate-800/60 p-2.5 rounded-xl text-[11px]">
+                                <span className="block font-bold text-amber-400 uppercase tracking-wide text-[9px]">
+                                  {language === "es" ? "Meta de Aprendizaje:" : "Learning Goal:"}
+                                </span>
+                                <p className="text-slate-300 mt-0.5 leading-relaxed">
+                                  {cardDetails[card.id]?.targetGoal || (language === "es" ? "Dominar habilidades avanzadas de comunicación con IA." : "Master advanced communication skills with AI.")}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Llamado a la acción con aclaración de gratuidad */}
+                            <div className="space-y-2 pt-2">
+                              <button
+                                onClick={() => {
+                                  localStorage.removeItem("teclingo_user");
+                                  localStorage.setItem("teclingo_initial_tab", "register");
+                                  window.location.reload();
+                                }}
+                                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs tracking-wide shadow-lg cursor-pointer transition-transform active:scale-95 text-center block"
+                              >
+                                {language === "es" ? "REGISTRARME GRATIS" : "SIGN UP FOR FREE"}
+                              </button>
+                              <p className="text-center text-[9px] text-slate-400 leading-snug">
+                                {language === "es" ? (
+                                  <>🎁 Tu cuenta seguirá siendo <span className="text-emerald-400 font-semibold">100% gratuita</span> renovándose diariamente hasta alcanzar tu límite de uso.</>
+                                ) : (
+                                  <>🎁 Your account will remain <span className="text-emerald-400 font-semibold">100% free</span> renewing daily until your usage limit.</>
+                                )}
+                              </p>
+                            </div>
+
+                          </div>
+
+                        </div>
+                      )}
+
+                      {/* 1. CONTENIDO REAL DEL LABORATORIO (Sutilmente desenfocado si está bloqueado) */}
+                      <div className={`flex-grow flex flex-col justify-between transition-all duration-300 ${isLockedForGuest ? 'filter blur-[3.5px] opacity-40 select-none pointer-events-none' : ''}`}>
+                      {/* Decorative illustrative header area */}
+                      <div className={`flex-grow flex items-center justify-center relative overflow-hidden p-6 ${card.bgClass} dark:bg-gray-900/35 border-b-2 border-slate-200 dark:border-slate-800/80`}>
+                        <div className="absolute inset-0 opacity-25 bg-gradient-to-br from-white to-transparent dark:from-black/10"></div>
+                        <img 
+                          alt={card.title} 
+                          className="w-[85%] h-auto max-h-[180px] object-contain z-10 transition-transform duration-700 group-hover:scale-105 filter drop-shadow-sm" 
+                          src={card.imageUrl}
+                        />
+                      </div>
+
+                      {/* Info card footer */}
+                      <div className="p-6 bg-white dark:bg-[#15161a] shrink-0">
+                        <h3 className="font-extrabold text-gray-950 text-base group-hover:text-[#0058bc] dark:group-hover:text-blue-400 transition-colors">{card.title}</h3>
+                        <p className="text-gray-400 dark:text-gray-500 text-[11px] font-semibold mt-1 leading-normal h-8 overflow-hidden line-clamp-2">{card.desc}</p>
+                        
+                        {/* Deep 3D mechanical press button */}
+                        <div className="mt-4">
+                          <button 
+                            onClick={() => handleEnterLab(card.id)}
+                            className="relative w-full group/btn cursor-pointer block"
+                          >
+                            {/* Back depth layer */}
+                            <span className="absolute inset-0 w-full h-full bg-[#003d85] dark:bg-blue-950 rounded-xl translate-y-[4px] transition-transform duration-100 group-hover/btn:translate-y-[5px] group-active/btn:translate-y-0 shadow-[0_4px_12px_rgba(0,0,0,0.15)]"></span>
+                            
+                            {/* Front interactive face */}
+                            <span className="relative flex items-center justify-center gap-2 bg-[#0058bc] hover:bg-[#006ee6] text-white font-black text-xs uppercase tracking-wider py-3 px-4 rounded-xl border border-[#004bb0] -translate-y-0 transition-transform duration-100 group-hover/btn:-translate-y-[1px] group-active/btn:translate-y-[4px] shadow-sm">
+                              {navText.enterBtn} 
+                              <ArrowRight size={13} className="transition-transform group-hover/btn:translate-x-1" />
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  );
+                });
+              })()}
             </div>
 
             {/* High-Impact Dynamic Benefits Carousel */}
@@ -1378,77 +1875,341 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="space-y-4 pt-2">
-                  <div className="flex justify-between items-center bg-orange-50 dark:bg-orange-950/20 p-3 rounded-2xl border border-orange-100/30 dark:border-orange-900/30">
-                    <div>
-                      <span className="text-[10px] uppercase font-black tracking-widest text-[#ff7c00]">
-                        {language === "es" ? "Dirigido a:" : "Target Audience:"}
-                      </span>
-                      <p className="text-xs font-black text-gray-800 dark:text-gray-200">
-                        {language === "es" ? "Secundaria & Preparatoria" : "Middle & High School Students"}
-                      </p>
-                    </div>
-                    <span className="text-[10px] font-bold bg-white dark:bg-[#15161a] border border-orange-150 dark:border-orange-900/40 text-[#ff7c00] dark:text-orange-400 px-3 py-1 rounded-full uppercase">
-                      12 a 18 {language === "es" ? "años" : "years"}
+                {/* Progress bar / indicator for steps */}
+                {summerStep !== "details" && summerStep !== "success" && (
+                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-2xl border border-gray-150 dark:border-gray-800/80 text-[10px] sm:text-xs font-bold text-gray-400 mt-2">
+                    <span className={`px-2.5 py-1.5 rounded-xl transition-all ${summerStep === 1 ? 'bg-orange-500 text-white shadow-xs' : 'text-gray-750 dark:text-gray-300'}`}>
+                      {language === "es" ? "1. Datos" : "1. Data"}
+                    </span>
+                    <span className="text-gray-300 dark:text-gray-700">➔</span>
+                    <span className={`px-2.5 py-1.5 rounded-xl transition-all ${summerStep === 2 ? 'bg-orange-500 text-white shadow-xs' : summerStep > 2 ? 'text-gray-750 dark:text-gray-350' : 'text-gray-400'}`}>
+                      {language === "es" ? "2. Metas" : "2. Goals"}
+                    </span>
+                    <span className="text-gray-300 dark:text-gray-700">➔</span>
+                    <span className={`px-2.5 py-1.5 rounded-xl transition-all ${summerStep === 3 ? 'bg-orange-500 text-white shadow-xs' : 'text-gray-400'}`}>
+                      {language === "es" ? "3. Pago" : "3. Payment"}
                     </span>
                   </div>
+                )}
 
-                  <div className="text-xs text-gray-500 dark:text-gray-400 space-y-3 font-medium leading-relaxed">
-                    <p className="font-bold text-gray-750 dark:text-gray-300">
-                      {language === "es" 
-                        ? "Acelera tu nivel de inglés este verano con tecnología avanzada e inmersión conversacional interactiva con tutores de IA en tiempo real." 
-                        : "Accelerate your English level this summer with advanced technology and interactive conversational immersion with real-time AI tutors."}
-                    </p>
-
-                    <div className="grid grid-cols-2 gap-3 pt-1">
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800/40 rounded-2xl border border-gray-150 dark:border-gray-800/50">
-                        <span className="text-[10px] font-bold uppercase text-gray-400 block">{language === "es" ? "Fechas" : "Dates"}</span>
-                        <span className="text-xs font-bold text-gray-800 dark:text-gray-200">20 Jul - 14 Ago 2026</span>
+                {/* STEP DETAILS: Course Brochure / Standard Details */}
+                {summerStep === "details" && (
+                  <div className="space-y-4 pt-2">
+                    <div className="flex justify-between items-center bg-orange-50 dark:bg-orange-950/20 p-3 rounded-2xl border border-orange-100/30 dark:border-orange-900/30">
+                      <div>
+                        <span className="text-[10px] uppercase font-black tracking-widest text-[#ff7c00]">
+                          {language === "es" ? "Dirigido a:" : "Target Audience:"}
+                        </span>
+                        <p className="text-xs font-black text-gray-800 dark:text-gray-200">
+                          {language === "es" ? "Secundaria & Preparatoria" : "Middle & High School Students"}
+                        </p>
                       </div>
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800/40 rounded-2xl border border-gray-150 dark:border-gray-800/50">
-                        <span className="text-[10px] font-bold uppercase text-gray-400 block">{language === "es" ? "Horario" : "Schedule"}</span>
-                        <span className="text-xs font-bold text-gray-800 dark:text-gray-200">9:00 AM - 1:00 PM</span>
+                      <span className="text-[10px] font-bold bg-white dark:bg-[#15161a] border border-orange-150 dark:border-orange-900/40 text-[#ff7c00] dark:text-orange-400 px-3 py-1 rounded-full uppercase">
+                        12 a 18 {language === "es" ? "años" : "years"}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-gray-500 dark:text-gray-400 space-y-3 font-medium leading-relaxed">
+                      <p className="font-bold text-gray-750 dark:text-gray-300">
+                        {language === "es" 
+                          ? "Acelera tu nivel de inglés este verano con tecnología avanzada e inmersión conversacional interactiva con tutores de IA en tiempo real." 
+                          : "Accelerate your English level this summer with advanced technology and interactive conversational immersion with real-time AI tutors."}
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <div className="p-3 bg-gray-50 dark:bg-gray-800/40 rounded-2xl border border-gray-150 dark:border-gray-800/50">
+                          <span className="text-[10px] font-bold uppercase text-gray-400 block">{language === "es" ? "Fechas" : "Dates"}</span>
+                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200">20 Jul - 14 Ago 2026</span>
+                        </div>
+                        <div className="p-3 bg-gray-50 dark:bg-gray-800/40 rounded-2xl border border-gray-150 dark:border-gray-800/50">
+                          <span className="text-[10px] font-bold uppercase text-gray-400 block">{language === "es" ? "Horario" : "Schedule"}</span>
+                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200">9:00 AM - 1:00 PM</span>
+                        </div>
+                      </div>
+
+                      <h4 className="text-xs font-black uppercase text-gray-900 dark:text-gray-100 tracking-wider pt-2 flex items-center gap-1">
+                        <Sparkles size={12} className="text-amber-500" />
+                        {language === "es" ? "¿Qué incluye el programa?" : "What's Included?"}
+                      </h4>
+
+                      <ul className="list-disc pl-4 space-y-1.5 text-xs text-gray-600 dark:text-gray-350">
+                        <li>
+                          <strong>{language === "es" ? "Práctica Conversacional AI:" : "AI Conversational Practice:"}</strong>{" "}
+                          {language === "es" ? "Evaluaciones de voz y pronunciación diaria en entornos interactivos." : "Daily voice and pronunciation evaluation in simulated interactive scenes."}
+                        </li>
+                        <li>
+                          <strong>{language === "es" ? "TOEFL Junior & MCER:" : "TOEFL Junior & CEFR:"}</strong>{" "}
+                          {language === "es" ? "Simulacros oficiales con retroalimentación inmediata." : "Official simulated tests with immediate targeted feedback."}
+                        </li>
+                        <li>
+                          <strong>{language === "es" ? "Proyectos Colaborativos:" : "Collaborative Projects:"}</strong>{" "}
+                          {language === "es" ? "Debates, club de lectura y actividades inmersivas grupales." : "Debating clubs, interactive reading, and group immersion activities."}
+                        </li>
+                      </ul>
+
+                      <div className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100/30 dark:border-emerald-900/30 p-3.5 rounded-2xl text-[11px] font-bold mt-2">
+                        {language === "es"
+                          ? "✨ Certificación Nacional de Idioma CENNI / SEP incluida al finalizar con éxito el curso."
+                          : "✨ CENNI / SEP national language certification included upon successful completion of the course."}
                       </div>
                     </div>
 
-                    <h4 className="text-xs font-black uppercase text-gray-900 dark:text-gray-100 tracking-wider pt-2 flex items-center gap-1">
-                      <Sparkles size={12} className="text-amber-500" />
-                      {language === "es" ? "¿Qué incluye el programa?" : "What's Included?"}
-                    </h4>
+                    {/* ENROLLMENT ACTION BOX WITH INTELLIGENT GUEST INTERCEPTOR */}
+                    <div className="space-y-2.5 pt-3 border-t border-gray-100 dark:border-gray-800/80">
+                      <button
+                        onClick={() => {
+                          if (currentUser?.role === "guest") {
+                            // Intercept guest user: prompt them to sign up
+                            localStorage.setItem("teclingo_enroll_after_register", "true");
+                            localStorage.setItem("teclingo_initial_tab", "register");
+                            setCurrentUser(null);
+                            localStorage.removeItem("teclingo_user");
+                            setActiveModal(null);
+                          } else {
+                            setSummerStep(1);
+                          }
+                        }}
+                        className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-orange-500 to-pink-600 hover:from-amber-600 hover:via-orange-600 hover:to-pink-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        🚀 {language === "es" ? "INSCRIBIRME AL CURSO" : "ENROLL IN THE COURSE"}
+                      </button>
 
-                    <ul className="list-disc pl-4 space-y-1.5 text-xs text-gray-600 dark:text-gray-350">
-                      <li>
-                        <strong>{language === "es" ? "Práctica Conversacional AI:" : "AI Conversational Practice:"}</strong>{" "}
-                        {language === "es" ? "Evaluaciones de voz y pronunciación diaria en entornos interactivos." : "Daily voice and pronunciation evaluation in simulated interactive scenes."}
-                      </li>
-                      <li>
-                        <strong>{language === "es" ? "TOEFL Junior & MCER:" : "TOEFL Junior & CEFR:"}</strong>{" "}
-                        {language === "es" ? "Simulacros oficiales con retroalimentación inmediata." : "Official simulated tests with immediate targeted feedback."}
-                      </li>
-                      <li>
-                        <strong>{language === "es" ? "Proyectos Colaborativos:" : "Collaborative Projects:"}</strong>{" "}
-                        {language === "es" ? "Debates, club de lectura y actividades inmersivas grupales." : "Debating clubs, interactive reading, and group immersion activities."}
-                      </li>
-                    </ul>
-
-                    <div className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100/30 dark:border-emerald-900/30 p-3.5 rounded-2xl text-[11px] font-bold mt-2">
-                      {language === "es"
-                        ? "✨ Certificación Nacional de Idioma CENNI / SEP incluida al finalizar con éxito el curso."
-                        : "✨ CENNI / SEP national language certification included upon successful completion of the course."}
+                      <a
+                        href="https://wa.me/521234567890?text=Hola,%20quiero%20más%20información%20del%20Curso%20de%20Verano%20Teclingo%202026"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-3 bg-[#25D366] hover:bg-[#20ba56] text-white rounded-2xl font-black text-[11px] uppercase tracking-wider shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        💬 {language === "es" ? "Saber más por WhatsApp" : "Learn More via WhatsApp"}
+                      </a>
                     </div>
                   </div>
+                )}
 
-                  <div className="pt-2">
-                    <a
-                      href="https://wa.me/521234567890?text=Hola,%20quiero%20más%20información%20del%20Curso%20de%20Verano%20Teclingo%202026"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full py-3.5 bg-[#25D366] hover:bg-[#20ba56] text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      💬 {language === "es" ? "Saber más por WhatsApp" : "Learn More via WhatsApp"}
-                    </a>
+                {/* STEP 1: Academic data */}
+                {summerStep === 1 && (
+                  <form 
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setSummerStep(2);
+                    }}
+                    className="space-y-4 pt-2 text-left"
+                  >
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 tracking-wider">
+                        {language === "es" ? "Nombre Completo del Estudiante" : "Student's Full Name"}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder={language === "es" ? "Ej. Carlos Mendoza" : "e.g. Carlos Mendoza"}
+                        value={enrollFormData.nombre}
+                        onChange={(e) => setEnrollFormData({ ...enrollFormData, nombre: e.target.value })}
+                        className="w-full text-sm p-3.5 rounded-2xl border border-gray-200 dark:border-gray-800 focus:outline-hidden focus:ring-2 focus:ring-orange-500 bg-gray-50 dark:bg-gray-900/60 text-gray-800 dark:text-gray-100 font-semibold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 tracking-wider">
+                        {language === "es" ? "Nivel Escolar Actual" : "Current School Level"}
+                      </label>
+                      <select
+                        value={enrollFormData.nivelEscolar}
+                        onChange={(e) => setEnrollFormData({ ...enrollFormData, nivelEscolar: e.target.value })}
+                        className="w-full text-sm p-3.5 rounded-2xl border border-gray-200 dark:border-gray-800 focus:outline-hidden focus:ring-2 focus:ring-orange-500 bg-gray-50 dark:bg-gray-900/60 text-gray-800 dark:text-gray-100 font-bold"
+                      >
+                        <option value="Secundaria">{language === "es" ? "Secundaria (1° - 3° Grado)" : "Middle School (Grades 7-9)"}</option>
+                        <option value="Preparatoria">{language === "es" ? "Preparatoria / Bachillerato" : "High School / Prep School"}</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800/80">
+                      <button
+                        type="button"
+                        onClick={() => setSummerStep("details")}
+                        className="py-2.5 px-4 text-xs font-black text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/40 rounded-xl transition-all"
+                      >
+                        ← {language === "es" ? "Atrás" : "Back"}
+                      </button>
+
+                      <button
+                        type="submit"
+                        className="py-3 px-6 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black text-xs tracking-wider transition-all shadow-md shadow-orange-500/10 flex items-center gap-1.5"
+                      >
+                        {language === "es" ? "CONTINUAR" : "CONTINUE"} ➔
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* STEP 2: Main Goals */}
+                {summerStep === 2 && (
+                  <form 
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setSummerStep(3);
+                    }}
+                    className="space-y-4 pt-2 text-left"
+                  >
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 tracking-wider">
+                        {language === "es" ? "¿Cuál es tu meta principal con el inglés?" : "What is your primary English goal?"}
+                      </label>
+                      <select
+                        value={enrollFormData.metaPrincipal}
+                        onChange={(e) => setEnrollFormData({ ...enrollFormData, metaPrincipal: e.target.value })}
+                        className="w-full text-sm p-3.5 rounded-2xl border border-gray-200 dark:border-gray-800 focus:outline-hidden focus:ring-2 focus:ring-orange-500 bg-gray-50 dark:bg-gray-900/60 text-gray-800 dark:text-gray-100 font-bold"
+                      >
+                        <option value="Hablar con fluidez">{language === "es" ? "Mejorar mi pronunciación y hablar con fluidez" : "Improve pronunciation and speak fluently"}</option>
+                        <option value="Pasar exámenes">{language === "es" ? "Aprobar materias escolares y regularizarme" : "Pass school classes and get extra tutoring"}</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 tracking-wider">
+                        {language === "es" ? "Tiempo de práctica estimado" : "Estimated practice commitment"}
+                      </label>
+                      <select
+                        value={enrollFormData.tiempoDedicacion}
+                        onChange={(e) => setEnrollFormData({ ...enrollFormData, tiempoDedicacion: e.target.value })}
+                        className="w-full text-sm p-3.5 rounded-2xl border border-gray-200 dark:border-gray-800 focus:outline-hidden focus:ring-2 focus:ring-orange-500 bg-gray-50 dark:bg-gray-900/60 text-gray-800 dark:text-gray-100 font-bold"
+                      >
+                        <option value="3-5 horas por semana">{language === "es" ? "3 a 5 horas por semana (Recomendado)" : "3 to 5 hours per week (Recommended)"}</option>
+                        <option value="Diario">{language === "es" ? "¡Practicar todos los días! (Inmersión Total)" : "Practice daily! (Total Immersion)"}</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800/80">
+                      <button
+                        type="button"
+                        onClick={() => setSummerStep(1)}
+                        className="py-2.5 px-4 text-xs font-black text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/40 rounded-xl transition-all"
+                      >
+                        ← {language === "es" ? "Atrás" : "Back"}
+                      </button>
+
+                      <button
+                        type="submit"
+                        className="py-3 px-6 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black text-xs tracking-wider transition-all shadow-md shadow-orange-500/10 flex items-center gap-1.5"
+                      >
+                        {language === "es" ? "CONTINUAR" : "CONTINUE"} ➔
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* STEP 3: Confirm Payment */}
+                {summerStep === 3 && (
+                  <div className="space-y-4 pt-2 text-left">
+                    <div className="bg-slate-50 dark:bg-slate-900/80 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 text-center">
+                      <span className="text-[10px] font-black text-gray-450 uppercase tracking-widest block mb-1">
+                        {language === "es" ? "TOTAL ÚNICO A PAGAR" : "ONE-TIME COURSE ENROLLMENT FEE"}
+                      </span>
+                      <span className="text-3xl font-black text-gray-900 dark:text-white">
+                        $599<span className="text-sm font-bold text-gray-500 dark:text-gray-450"> MXN / {language === "es" ? "Curso Completo" : "Complete Course"}</span>
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-2 tracking-wider">
+                        {language === "es" ? "Pasarela de Pago Segura" : "Secure Payment Gateway"}
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setEnrollFormData({ ...enrollFormData, metodoPago: "card" })}
+                          className={`p-4 rounded-2xl border-2 text-left flex flex-col justify-between h-20 transition-all cursor-pointer ${
+                            enrollFormData.metodoPago === "card"
+                              ? "border-orange-500 bg-orange-50/20 dark:bg-orange-950/10"
+                              : "border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-850"
+                          }`}
+                        >
+                          <span className="text-xs font-black text-gray-800 dark:text-gray-200">💳 {language === "es" ? "Tarjeta (Stripe)" : "Card (Stripe)"}</span>
+                          <span className="text-[10px] font-bold text-gray-400">{language === "es" ? "Crédito o Débito" : "Credit or Debit"}</span>
+                        </button>
+                        
+                        <button
+                          type="button"
+                          onClick={() => setEnrollFormData({ ...enrollFormData, metodoPago: "paypal" })}
+                          className={`p-4 rounded-2xl border-2 text-left flex flex-col justify-between h-20 transition-all cursor-pointer ${
+                            enrollFormData.metodoPago === "paypal"
+                              ? "border-blue-500 bg-blue-50/20 dark:bg-blue-950/10"
+                              : "border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-850"
+                          }`}
+                        >
+                          <span className="text-xs font-black text-gray-800 dark:text-gray-200">🔵 PayPal</span>
+                          <span className="text-[10px] font-bold text-gray-400">{language === "es" ? "Saldo o tarjeta" : "Balance or card"}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800/80">
+                      <button
+                        type="button"
+                        onClick={() => setSummerStep(2)}
+                        className="py-2.5 px-4 text-xs font-black text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/40 rounded-xl transition-all"
+                      >
+                        ← {language === "es" ? "Atrás" : "Back"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const statsKey = `teclingo_user_${currentUser?.email}_stats`;
+                          const updatedStats = { ...userStats, hasEnrolledSummer: true };
+                          setUserStats(updatedStats);
+                          localStorage.setItem(statsKey, JSON.stringify(updatedStats));
+                          setSummerStep("success");
+                        }}
+                        className="py-3 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-xs tracking-wider transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        🔒 {language === "es" ? "CONFIRMAR Y PAGAR" : "CONFIRM AND PAY"}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* SUCCESS SCREEN */}
+                {summerStep === "success" && (
+                  <div className="text-center py-6 space-y-4">
+                    <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto text-3xl animate-bounce">
+                      🎉
+                    </div>
+                    <div className="space-y-1.5">
+                      <h3 className="text-lg font-black text-gray-900 dark:text-gray-100">
+                        {language === "es" ? "¡Inscripción Exitosa! 🎁" : "Enrollment Successful! 🎁"}
+                      </h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 font-bold max-w-sm mx-auto">
+                        {language === "es" 
+                          ? `¡Felicidades ${enrollFormData.nombre || currentUser?.name}! Los datos de tu nivel escolar (${enrollFormData.nivelEscolar}) y tus metas han sido vinculados a tu cuenta (${currentUser?.email}) con éxito.`
+                          : `Congratulations ${enrollFormData.nombre || currentUser?.name}! Your academic info (${enrollFormData.nivelEscolar}) and goals have been successfully linked to your account (${currentUser?.email}).`}
+                      </p>
+                    </div>
+
+                    <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100/40 dark:border-emerald-900/30 rounded-2xl p-4 text-left max-w-sm mx-auto">
+                      <p className="text-xs text-emerald-800 dark:text-emerald-400 font-bold">
+                        {language === "es"
+                          ? "✓ Tu lugar en el Curso de Verano 2026 ha sido reservado de forma oficial."
+                          : "✓ Your spot in the Summer Course 2026 has been officially reserved."}
+                      </p>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                        {language === "es"
+                          ? "Nos pondremos en contacto contigo por correo electrónico con las claves de acceso y materiales un día antes del inicio."
+                          : "We will reach out to you via email with your system login credentials and course materials one day prior to start."}
+                      </p>
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={closeActiveModal}
+                        className="w-full py-3 bg-gray-900 dark:bg-gray-800 hover:bg-black dark:hover:bg-gray-750 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer"
+                      >
+                        {language === "es" ? "ENTRAR A TECLINGO" : "START LEARNING"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1645,7 +2406,7 @@ export default function App() {
                         <div>
                           <h4 className="text-[11px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1.5">
                             <BookOpen size={13} />
-                            {language === "es" ? "Base de Datos de Temario & Niveles de Inglés" : "English Course Syllabus Database"}
+                            {language === "es" ? "Base de Datos de Temario & Niveles de Inglés (MCER)" : "English Course Syllabus Database (CEFR)"}
                           </h4>
                           <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
                             {language === "es" ? "Define los contenidos, duraciones y enfoques curriculares de la aplicación." : "Fine-tune levels, durations, and thematic focuses of Teclingo."}
@@ -1653,12 +2414,16 @@ export default function App() {
                         </div>
                         <button
                           onClick={() => {
-                            const newCourse = {
+                            const newCourse: CourseLevelDB = {
                               id: Date.now().toString(),
-                              level: "Nuevo Nivel",
+                              level: "A1",
+                              tag: "Básico",
                               topic: "Tema Técnico Nuevo",
                               desc: "Descripción del contenido y habilidades que el estudiante aprenderá.",
-                              duration: "20 Horas"
+                              duration: "20 Horas",
+                              grammarFocus: "Present Simple",
+                              technicalVocabulary: "Tools",
+                              canDoStatement: "El estudiante puede..."
                             };
                             setCourseDB([...courseDB, newCourse]);
                           }}
@@ -1669,66 +2434,81 @@ export default function App() {
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[420px] overflow-y-auto pr-1 scrollbar-thin">
                         {courseDB.map((course) => (
                           <div 
                             key={course.id}
-                            className="p-4 bg-gray-50 dark:bg-[#121316] border border-gray-150 dark:border-gray-800 rounded-2xl space-y-3 relative group"
+                            className="p-4 bg-gray-50 dark:bg-[#121316] border border-gray-150 dark:border-gray-800 rounded-2xl space-y-3 relative group text-left"
                           >
-                            <div className="flex justify-between gap-3">
-                              <div className="flex-1 space-y-2">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <label className="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase block">{language === "es" ? "Nivel / MCER" : "MCER Level"}</label>
-                                    <input
-                                      type="text"
-                                      value={course.level}
-                                      onChange={(e) => {
-                                        const updated = courseDB.map(c => c.id === course.id ? { ...c, level: e.target.value } : c);
-                                        setCourseDB(updated);
-                                      }}
-                                      className="font-bold text-[11px] text-indigo-600 dark:text-indigo-400 bg-transparent border-b border-transparent hover:border-gray-200 dark:hover:border-gray-800 focus:border-indigo-500 focus:outline-hidden w-full mt-0.5"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase block">{language === "es" ? "Duración" : "Hours"}</label>
-                                    <input
-                                      type="text"
-                                      value={course.duration}
-                                      onChange={(e) => {
-                                        const updated = courseDB.map(c => c.id === course.id ? { ...c, duration: e.target.value } : c);
-                                        setCourseDB(updated);
-                                      }}
-                                      className="font-mono text-xs text-gray-800 dark:text-gray-300 bg-transparent border-b border-transparent hover:border-gray-200 dark:hover:border-gray-800 focus:border-indigo-500 focus:outline-hidden w-full mt-0.5"
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="space-y-0.5">
-                                  <label className="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase block">{language === "es" ? "Tema de Enfoque" : "Technical Topic"}</label>
+                            {/* Card Header row with Level, Tag, Duration */}
+                            <div className="flex justify-between items-start gap-2 border-b border-gray-100 dark:border-gray-800 pb-2.5">
+                              <div className="flex items-center gap-2 flex-1 flex-wrap">
+                                <div className="w-14">
+                                  <label className="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase block">{language === "es" ? "MCER" : "CEFR"}</label>
                                   <input
                                     type="text"
-                                    value={course.topic}
+                                    value={course.level}
                                     onChange={(e) => {
-                                      const updated = courseDB.map(c => c.id === course.id ? { ...c, topic: e.target.value } : c);
+                                      const updated = courseDB.map(c => c.id === course.id ? { ...c, level: e.target.value } : c);
                                       setCourseDB(updated);
                                     }}
-                                    className="font-black text-xs text-gray-950 dark:text-gray-150 bg-transparent border-b border-transparent hover:border-gray-200 dark:hover:border-gray-800 focus:border-indigo-500 focus:outline-hidden w-full"
+                                    className="font-black text-xs text-indigo-600 dark:text-indigo-450 bg-white dark:bg-[#15161a] border border-gray-200 dark:border-gray-850 px-1.5 py-0.5 rounded-md w-full"
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-[70px]">
+                                  <label className="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase block">{language === "es" ? "Tag / Grupo" : "Tag"}</label>
+                                  <input
+                                    type="text"
+                                    value={course.tag}
+                                    onChange={(e) => {
+                                      const updated = courseDB.map(c => c.id === course.id ? { ...c, tag: e.target.value } : c);
+                                      setCourseDB(updated);
+                                    }}
+                                    className="font-bold text-xs text-gray-700 dark:text-gray-350 bg-white dark:bg-[#15161a] border border-gray-200 dark:border-gray-850 px-1.5 py-0.5 rounded-md w-full"
+                                  />
+                                </div>
+                                <div className="w-20">
+                                  <label className="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase block">{language === "es" ? "Duración" : "Hours"}</label>
+                                  <input
+                                    type="text"
+                                    value={course.duration}
+                                    onChange={(e) => {
+                                      const updated = courseDB.map(c => c.id === course.id ? { ...c, duration: e.target.value } : c);
+                                      setCourseDB(updated);
+                                    }}
+                                    className="font-mono text-[11px] text-gray-600 dark:text-gray-400 bg-white dark:bg-[#15161a] border border-gray-200 dark:border-gray-850 px-1.5 py-0.5 rounded-md w-full"
                                   />
                                 </div>
                               </div>
                               <button
                                 onClick={() => {
-                                  setCourseDB(courseDB.filter(c => c.id !== course.id));
+                                  if (window.confirm(language === "es" ? "¿Seguro que deseas eliminar este nivel?" : "Are you sure you want to delete this level?")) {
+                                    setCourseDB(courseDB.filter(c => c.id !== course.id));
+                                  }
                                 }}
-                                className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-gray-400 hover:text-red-500 rounded-lg h-fit transition-colors"
+                                className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-gray-400 hover:text-red-500 rounded-lg h-fit transition-colors cursor-pointer"
                               >
                                 <Trash size={13} />
                               </button>
                             </div>
 
+                            {/* Tema de Enfoque */}
                             <div className="space-y-0.5">
-                              <label className="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase block">{language === "es" ? "Descripción" : "Description"}</label>
+                              <label className="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase block">{language === "es" ? "Tema de Enfoque" : "Technical Topic"}</label>
+                              <input
+                                type="text"
+                                value={course.topic}
+                                onChange={(e) => {
+                                  const updated = courseDB.map(c => c.id === course.id ? { ...c, topic: e.target.value } : c);
+                                  setCourseDB(updated);
+                                }}
+                                className="font-bold text-xs text-gray-950 dark:text-gray-150 bg-white dark:bg-[#15161a] border border-gray-200 dark:border-gray-850 px-2.5 py-1 rounded-xl w-full"
+                              />
+                            </div>
+
+                            {/* Descripción del Módulo */}
+                            <div className="space-y-0.5">
+                              <label className="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase block">{language === "es" ? "Descripción del Módulo" : "Module Description"}</label>
                               <textarea
                                 rows={2}
                                 value={course.desc}
@@ -1736,8 +2516,55 @@ export default function App() {
                                   const updated = courseDB.map(c => c.id === course.id ? { ...c, desc: e.target.value } : c);
                                   setCourseDB(updated);
                                 }}
-                                className="w-full p-2 bg-white dark:bg-[#15161a] text-[10px] text-gray-500 dark:text-gray-400 border border-gray-150 dark:border-gray-800 rounded-lg focus:outline-hidden focus:border-indigo-500 leading-normal"
+                                className="w-full p-2 bg-white dark:bg-[#15161a] text-[11px] text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-850 rounded-xl focus:outline-hidden focus:border-indigo-500 leading-normal"
                               />
+                            </div>
+
+                            {/* Enfoque Gramatical & Vocabulario Clave */}
+                            <div className="grid grid-cols-2 gap-2 text-[10px]">
+                              <div className="space-y-0.5">
+                                <label className="text-[8px] font-black text-slate-500 dark:text-slate-450 uppercase block">🔹 {language === "es" ? "Enfoque Gramatical" : "Grammar Focus"}</label>
+                                <textarea
+                                  rows={2}
+                                  value={course.grammarFocus || ""}
+                                  onChange={(e) => {
+                                    const updated = courseDB.map(c => c.id === course.id ? { ...c, grammarFocus: e.target.value } : c);
+                                    setCourseDB(updated);
+                                  }}
+                                  className="w-full p-2 bg-white dark:bg-[#15161a] text-[10px] text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-850 rounded-xl focus:outline-hidden focus:border-indigo-500 leading-normal"
+                                  placeholder={language === "es" ? "Ej. Present Simple, Past Perfect" : "e.g., Present Simple, Past Perfect"}
+                                />
+                              </div>
+                              <div className="space-y-0.5">
+                                <label className="text-[8px] font-black text-slate-500 dark:text-slate-450 uppercase block">⚙️ {language === "es" ? "Vocabulario Clave" : "Key Vocabulary"}</label>
+                                <textarea
+                                  rows={2}
+                                  value={course.technicalVocabulary || ""}
+                                  onChange={(e) => {
+                                    const updated = courseDB.map(c => c.id === course.id ? { ...c, technicalVocabulary: e.target.value } : c);
+                                    setCourseDB(updated);
+                                  }}
+                                  className="w-full p-2 bg-white dark:bg-[#15161a] text-[10px] text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-850 rounded-xl focus:outline-hidden focus:border-indigo-500 leading-normal"
+                                  placeholder={language === "es" ? "Ej. APIs, Deployment, Tools" : "e.g., APIs, Deployment, Tools"}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Criterio de Éxito / Can-Do Statement */}
+                            <div className="pt-2 border-t border-dashed border-gray-150 dark:border-gray-800">
+                              <div className="bg-amber-50/40 dark:bg-amber-950/10 border-l-2 border-l-amber-400 p-2 rounded-r-xl space-y-1">
+                                <label className="text-[8px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider block">🎯 {language === "es" ? "Criterio de Éxito (Can-Do Statement)" : "Success Criteria (Can-Do)"}</label>
+                                <textarea
+                                  rows={2}
+                                  value={course.canDoStatement || ""}
+                                  onChange={(e) => {
+                                    const updated = courseDB.map(c => c.id === course.id ? { ...c, canDoStatement: e.target.value } : c);
+                                    setCourseDB(updated);
+                                  }}
+                                  className="w-full p-1.5 bg-white dark:bg-[#15161a] text-[10px] text-gray-700 dark:text-gray-350 border border-amber-200/50 dark:border-amber-900/30 rounded-lg focus:outline-hidden focus:border-amber-400 leading-normal font-medium"
+                                  placeholder={language === "es" ? "Criterio de logro" : "Achievable success statement"}
+                                />
+                              </div>
                             </div>
                           </div>
                         ))}
