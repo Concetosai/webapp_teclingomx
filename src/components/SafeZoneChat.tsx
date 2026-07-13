@@ -9,7 +9,6 @@ import {
   AlertCircle, 
   CheckCircle2, 
   Activity, 
-  Terminal, 
   HelpCircle, 
   Shield, 
   Bot, 
@@ -19,7 +18,8 @@ import {
   MessageSquare,
   Sparkles as SparklesIcon,
   Lock,
-  Unlock
+  Unlock,
+  ChevronDown
 } from "lucide-react";
 import { ChatMessage, ChatEvaluation } from "../types";
 import { useGoogleTTS } from "../hooks/useGoogleTTS";
@@ -91,6 +91,10 @@ export default function SafeZoneChat({ onBack }: Props) {
   const [accentMatchScore, setAccentMatchScore] = useState<number>(75); // dynamic american accent match
   const [showCorrectedTranslation, setShowCorrectedTranslation] = useState(false);
 
+  // Mobile accordion collapse states - sidebars collapsed by default on mobile
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [coachingOpen, setCoachingOpen] = useState(false);
+
   useEffect(() => {
     setShowCorrectedTranslation(false);
   }, [evaluation]);
@@ -111,7 +115,6 @@ export default function SafeZoneChat({ onBack }: Props) {
       rec.lang = "en-US";
 
       rec.onstart = () => {
-        setIsRecording(true);
         addHudLog("VOICE_INPUT: Speech recognition engine active.");
       };
 
@@ -125,7 +128,7 @@ export default function SafeZoneChat({ onBack }: Props) {
 
       rec.onerror = (event: any) => {
         console.error("Speech recognition error", event.error);
-        addHudLog(`VOICE_INPUT_ERR: Error: ${event.error}`);
+        addHudLog(`VOICE_INPUT_ERR: ${event.error}`);
       };
 
       rec.onend = () => {
@@ -134,7 +137,7 @@ export default function SafeZoneChat({ onBack }: Props) {
 
       recognitionRef.current = rec;
     } else {
-      addHudLog("SYS_INFO: Web Speech Recognition API not supported in this browser. Fallback simulator will run.");
+      addHudLog("SYS_INFO: Web Speech Recognition API not supported. Using text input fallback.");
     }
 
     return () => {
@@ -350,23 +353,52 @@ export default function SafeZoneChat({ onBack }: Props) {
     }
   };
 
+  // Check supported MIME type for MediaRecorder (Android compatibility)
+  const getSupportedMimeType = (): string => {
+    const types = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/ogg",
+      "audio/mp4",
+      "audio/wav"
+    ];
+    for (const type of types) {
+      if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)) {
+        return type;
+      }
+    }
+    return "";
+  };
+
   // Active microphone operations: captures real audio and transcribes in real-time
   const startRecording = async () => {
     audioChunksRef.current = [];
     setUserInput("");
-    setIsRecording(true);
 
+    // Step 1: Start SpeechRecognition FIRST (lightweight, no mic lock)
     if (recognitionRef.current) {
       try {
         recognitionRef.current.start();
       } catch (err) {
-        console.warn("Speech recognition already running:", err);
+        console.warn("Speech recognition start error:", err);
       }
     }
 
+    // Step 2: Request mic permission — only set recording state AFTER success
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+
+      const mimeType = getSupportedMimeType();
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -377,9 +409,9 @@ export default function SafeZoneChat({ onBack }: Props) {
 
       mediaRecorder.onstop = async () => {
         addHudLog("VOICE_INPUT: Audio recording captured. Querying Gemini phonetic analyzer...");
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const finalMimeType = mimeType || "audio/webm";
+        const audioBlob = new Blob(audioChunksRef.current, { type: finalMimeType });
         
-        // Read Blob as base64
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = async () => {
@@ -393,14 +425,13 @@ export default function SafeZoneChat({ onBack }: Props) {
               body: JSON.stringify({
                 text: textToEvaluate,
                 audio: base64Audio,
-                mimeType: "audio/webm"
+                mimeType: finalMimeType
               })
             });
 
             if (!res.ok) throw new Error("Pronunciation feedback API error");
             const data = await res.json();
             
-            // Sync both the Accent Match Score and the Dialog Confidence slider!
             const newScore = data.score || 78;
             setAccentMatchScore(newScore);
             if (!isLocked) {
@@ -414,13 +445,12 @@ export default function SafeZoneChat({ onBack }: Props) {
               isCorrect: newScore >= 80,
               correctedText: data.transcription || textToEvaluate,
               detectedErrors: data.tips || "",
-              explanation: `${data.feedback || "¡Excelente pronunciación!"} \n\n💡 Tip de acento: ${data.tips || ""}`
+              explanation: `${data.feedback || "Excellent pronunciation!"} \n\nTip: ${data.tips || ""}`
             });
           } catch (err: any) {
             console.error("Pronunciation API failed:", err);
             addHudLog("SYS_WARN: Pronunciation API failed. Running phonetic simulation fallback.");
             
-            // High-quality fallback
             const simulatedScore = Math.floor(75 + Math.random() * 20);
             setAccentMatchScore(simulatedScore);
             if (!isLocked) {
@@ -433,23 +463,24 @@ export default function SafeZoneChat({ onBack }: Props) {
             setEvaluation({
               isCorrect: simulatedScore >= 82,
               correctedText: textToEvaluate,
-              detectedErrors: "Ligeros desfases de entonación.",
-              explanation: `¡Gran esfuerzo! Tu pronunciación de "${textToEvaluate}" es bastante fluida y natural. \n\n💡 Tip de acento: Intenta modular las sílabas acentuadas con mayor fuerza.`
+              detectedErrors: "Ligeros desfases de entonacion.",
+              explanation: `Tu voz de "${textToEvaluate}" suena bastante fluida y natural. \n\nTip: Intenta modular las silabas acentuadas con mayor fuerza.`
             });
           }
         };
 
-        // Release the mic
         stream.getTracks().forEach(track => track.stop());
       };
 
+      // NOW set recording state — after mic is successfully acquired
+      setIsRecording(true);
       mediaRecorder.start();
       addHudLog("VOICE_INPUT: Recording real audio. Speak in English now...");
+
     } catch (err: any) {
       console.warn("Media capture failed, launching simulation timer:", err);
       addHudLog("SYS_WARN: Microphone permission denied or unsupported. Running voice simulation...");
       
-      // Visual simulation timer
       setTimeout(() => {
         setIsRecording(false);
         const speechSamples = [
@@ -473,8 +504,8 @@ export default function SafeZoneChat({ onBack }: Props) {
         setEvaluation({
           isCorrect: simulatedScore >= 80,
           correctedText: resultText,
-          detectedErrors: "Ligeros desfases de entonación.",
-          explanation: `¡Tu voz de "${resultText}" suena muy natural! Buen progreso con tu acento americano. \n\n💡 Tip de acento: Mantén la fluidez constante sin pausas intermedias.`
+          detectedErrors: "Ligeros desfases de entonacion.",
+          explanation: `Tu voz de "${resultText}" suena muy natural! Buen progreso con tu acento americano. \n\nTip: Manten la fluidez constante sin pausas intermedias.`
         });
       }, 3500);
     }
@@ -593,9 +624,28 @@ export default function SafeZoneChat({ onBack }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 relative z-10 items-stretch">
         
         {/* ================================= COL 1: DIAGNOSTICS HUD (Left) ================================= */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col justify-between space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col">
           
-          <div>
+          {/* Mobile Accordion Toggle Header - visible only on mobile */}
+          <button
+            onClick={() => setDiagnosticsOpen(!diagnosticsOpen)}
+            className="lg:hidden flex items-center justify-between w-full p-4 cursor-pointer hover:bg-slate-50 rounded-t-2xl transition-colors"
+          >
+            <span className="text-xs font-black tracking-widest text-[#4c4aca] uppercase flex items-center gap-1.5">
+              <Shield size={13} />
+              DIAGNOSTICS HUD
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-400 font-mono">SYS_CONF</span>
+              <ChevronDown
+                size={16}
+                className={`text-slate-400 transition-transform duration-300 ${diagnosticsOpen ? "rotate-180" : ""}`}
+              />
+            </div>
+          </button>
+
+          {/* Desktop Header - always visible on lg+ */}
+          <div className="hidden lg:block p-5 pb-0">
             <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-2">
               <span className="text-xs font-black tracking-widest text-[#4c4aca] uppercase flex items-center gap-1.5">
                 <Shield size={13} />
@@ -603,145 +653,137 @@ export default function SafeZoneChat({ onBack }: Props) {
               </span>
               <span className="text-[10px] text-slate-400 font-mono">SYS_CONF</span>
             </div>
-
-            {/* Slider control: Confidence range */}
-            <div className="space-y-2.5 mb-6">
-              <div className="flex justify-between items-center text-xs font-bold">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-500 uppercase tracking-wide">CONFIANZA DE DIÁLOGO</span>
-                  <button 
-                    onClick={() => {
-                      setIsLocked(!isLocked);
-                      addHudLog(`SLIDER: Dialogue confidence mode toggled to ${!isLocked ? "MANUAL (LOCKED)" : "AUTOMATIC"}`);
-                    }}
-                    className={`p-1 rounded-md transition-colors cursor-pointer flex items-center justify-center border ${
-                      isLocked 
-                        ? "text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100" 
-                        : "text-slate-400 bg-slate-50 border-slate-200 hover:bg-slate-100"
-                    }`}
-                    title={isLocked ? "Manual (Haz clic para volver a modo automático)" : "Automático (Haz clic para bloquear manualmente)"}
-                  >
-                    {isLocked ? <Lock size={10} /> : <Unlock size={10} />}
-                  </button>
-                </div>
-                <span className="text-[#4c4aca] font-extrabold flex items-center gap-1">
-                  {confidence}%
-                  {isLocked && <span className="text-[9px] text-amber-500 font-extrabold tracking-wider uppercase">(FIJADO)</span>}
-                </span>
-              </div>
-              
-              <input 
-                type="range" 
-                min="0" 
-                max="100" 
-                value={confidence} 
-                onChange={handleSliderChange}
-                className="w-full h-1.5 bg-slate-100 rounded-lg cursor-pointer accent-[#4c4aca] transition-all"
-              />
-              
-              <div className="flex justify-between text-[10px] text-slate-400 font-bold pt-1">
-                <span className={confidence < 25 ? "text-amber-500 font-extrabold" : ""}>NERVIOSO</span>
-                <span className={(confidence >= 25 && confidence < 60) ? "text-yellow-600 font-extrabold" : ""}>NEUTRAL</span>
-                <span className={(confidence >= 60 && confidence < 85) ? "text-emerald-600 font-extrabold" : ""}>FLUIDO</span>
-                <span className={confidence >= 85 ? "text-blue-600 font-extrabold" : ""}>NATIVO</span>
-              </div>
-            </div>
-
-            {/* Micro accent visual box */}
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-center mb-6 space-y-2">
-              <span className="text-[10px] text-slate-500 font-extrabold tracking-wider block uppercase">
-                🎙️ THE BRIDGE: AMERICAN ACCENT
-              </span>
-              <button
-                id="btn-bridge-mic"
-                onClick={handleToggleMicrophone}
-                className={`w-10 h-10 rounded-full bg-white border flex items-center justify-center mx-auto shadow-xs cursor-pointer hover:border-[#4c4aca] transition-all hover:scale-105 ${
-                  isRecording ? "border-red-300 text-red-500 animate-pulse bg-red-50" : "border-slate-200 text-[#4c4aca]"
-                }`}
-                title={isRecording ? "Detener grabación de voz" : "Iniciar grabación para analizar tu acento"}
-              >
-                <Mic size={16} className={isRecording ? "animate-bounce" : ""} />
-              </button>
-              <p className="text-[10px] text-slate-400 font-medium leading-normal">
-                USE VOICE MIC TO TEST<br />AMERICAN ACCENT MATCH
-              </p>
-            </div>
-
-            {/* Filter controls with toggle buttons */}
-            <div className="space-y-4">
-              <span className="text-[10px] text-slate-400 font-black tracking-wider block uppercase border-b border-slate-50 pb-1.5">
-                ⚡ ESTADO DEL FILTRO
-              </span>
-
-              {/* Filter 1 */}
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-600 font-semibold">Mutador de Juicio</span>
-                <button
-                  onClick={() => handleToggleFilter("Mutador de Juicio", mutesAggressive, setMutesAggressive)}
-                  className="flex items-center gap-2 focus:outline-none cursor-pointer"
-                >
-                  <span className={`text-[10px] font-bold tracking-wide ${mutesAggressive ? "text-emerald-600" : "text-slate-400"}`}>
-                    {mutesAggressive ? "MUTADO (100%)" : "APAGADO"}
-                  </span>
-                  <div className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 ${mutesAggressive ? "bg-emerald-500" : "bg-slate-200"}`}>
-                    <div className={`w-3 h-3 rounded-full bg-white transition-transform duration-200 transform ${mutesAggressive ? "translate-x-4" : "translate-x-0"}`} />
-                  </div>
-                </button>
-              </div>
-
-              {/* Filter 2 */}
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-600 font-semibold">Motor Empático</span>
-                <button
-                  onClick={() => handleToggleFilter("Motor Empático", empatheticMotor, setEmpatheticMotor)}
-                  className="flex items-center gap-2 focus:outline-none cursor-pointer"
-                >
-                  <span className={`text-[10px] font-bold tracking-wide ${empatheticMotor ? "text-emerald-600" : "text-slate-400"}`}>
-                    {empatheticMotor ? "MÁXIMO" : "OFF"}
-                  </span>
-                  <div className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 ${empatheticMotor ? "bg-emerald-500" : "bg-slate-200"}`}>
-                    <div className={`w-3 h-3 rounded-full bg-white transition-transform duration-200 transform ${empatheticMotor ? "translate-x-4" : "translate-x-0"}`} />
-                  </div>
-                </button>
-              </div>
-
-              {/* Filter 3 */}
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-600 font-semibold">Corrector Sutil</span>
-                <button
-                  onClick={() => handleToggleFilter("Corrector Sutil", softSuggestions, setSoftSuggestions)}
-                  className="flex items-center gap-2 focus:outline-none cursor-pointer"
-                >
-                  <span className={`text-[10px] font-bold tracking-wide ${softSuggestions ? "text-emerald-600" : "text-slate-400"}`}>
-                    {softSuggestions ? "ACTIVO" : "INACTIVO"}
-                  </span>
-                  <div className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 ${softSuggestions ? "bg-emerald-500" : "bg-slate-200"}`}>
-                    <div className={`w-3 h-3 rounded-full bg-white transition-transform duration-200 transform ${softSuggestions ? "translate-x-4" : "translate-x-0"}`} />
-                  </div>
-                </button>
-              </div>
-            </div>
           </div>
 
-          {/* Clean HUD Log output */}
-          <div className="mt-4 pt-4 border-t border-slate-100">
-            <span className="text-[9px] text-slate-400 font-bold tracking-wider block uppercase mb-1.5 flex items-center gap-1">
-              <Terminal size={10} /> TECNOLINGÜÍSTICA HUD
-            </span>
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 h-24 overflow-y-auto font-mono text-[9px] text-slate-500 space-y-1 scrollbar-thin">
-              {hudLogs.map((log, idx) => (
-                <div key={idx} className="leading-tight select-none break-all whitespace-normal">
-                  <span className="text-slate-300">●</span> {log}
+          {/* Collapsible Content - always shown on desktop, toggle on mobile */}
+          <div className={`${diagnosticsOpen ? "block" : "hidden"} lg:block p-5 pt-0 lg:pt-0 space-y-6`}>
+            
+            <div className="lg:pt-0 pt-4">
+              {/* Slider control: Confidence range */}
+              <div className="space-y-2.5 mb-6">
+                <div className="flex justify-between items-center text-xs font-bold">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-500 uppercase tracking-wide">CONFIANZA DE DIÁLOGO</span>
+                    <button 
+                      onClick={() => {
+                        setIsLocked(!isLocked);
+                        addHudLog(`SLIDER: Dialogue confidence mode toggled to ${!isLocked ? "MANUAL (LOCKED)" : "AUTOMATIC"}`);
+                      }}
+                      className={`p-1 rounded-md transition-colors cursor-pointer flex items-center justify-center border ${
+                        isLocked 
+                          ? "text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100" 
+                          : "text-slate-400 bg-slate-50 border-slate-200 hover:bg-slate-100"
+                      }`}
+                      title={isLocked ? "Manual (Haz clic para volver a modo automático)" : "Automático (Haz clic para bloquear manualmente)"}
+                    >
+                      {isLocked ? <Lock size={10} /> : <Unlock size={10} />}
+                    </button>
+                  </div>
+                  <span className="text-[#4c4aca] font-extrabold flex items-center gap-1">
+                    {confidence}%
+                    {isLocked && <span className="text-[9px] text-amber-500 font-extrabold tracking-wider uppercase">(FIJADO)</span>}
+                  </span>
                 </div>
-              ))}
-              <div ref={messagesEndRef} />
+                
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="100" 
+                  value={confidence} 
+                  onChange={handleSliderChange}
+                  className="w-full h-1.5 bg-slate-100 rounded-lg cursor-pointer accent-[#4c4aca] transition-all"
+                />
+                
+                <div className="flex justify-between text-[10px] text-slate-400 font-bold pt-1">
+                  <span className={confidence < 25 ? "text-amber-500 font-extrabold" : ""}>NERVIOSO</span>
+                  <span className={(confidence >= 25 && confidence < 60) ? "text-yellow-600 font-extrabold" : ""}>NEUTRAL</span>
+                  <span className={(confidence >= 60 && confidence < 85) ? "text-emerald-600 font-extrabold" : ""}>FLUIDO</span>
+                  <span className={confidence >= 85 ? "text-blue-600 font-extrabold" : ""}>NATIVO</span>
+                </div>
+              </div>
+
+              {/* Micro accent visual box */}
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-center mb-6 space-y-2">
+                <span className="text-[10px] text-slate-500 font-extrabold tracking-wider block uppercase">
+                  🎙️ THE BRIDGE: AMERICAN ACCENT
+                </span>
+                <button
+                  id="btn-bridge-mic"
+                  onClick={handleToggleMicrophone}
+                  className={`w-10 h-10 rounded-full bg-white border flex items-center justify-center mx-auto shadow-xs cursor-pointer hover:border-[#4c4aca] transition-all hover:scale-105 ${
+                    isRecording ? "border-red-300 text-red-500 animate-pulse bg-red-50" : "border-slate-200 text-[#4c4aca]"
+                  }`}
+                  title={isRecording ? "Detener grabación de voz" : "Iniciar grabación para analizar tu acento"}
+                >
+                  <Mic size={16} className={isRecording ? "animate-bounce" : ""} />
+                </button>
+                <p className="text-[10px] text-slate-400 font-medium leading-normal">
+                  USE VOICE MIC TO TEST<br />AMERICAN ACCENT MATCH
+                </p>
+              </div>
+
+              {/* Filter controls with toggle buttons */}
+              <div className="space-y-4">
+                <span className="text-[10px] text-slate-400 font-black tracking-wider block uppercase border-b border-slate-50 pb-1.5">
+                  ⚡ ESTADO DEL FILTRO
+                </span>
+
+                {/* Filter 1 */}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 font-semibold">Mutador de Juicio</span>
+                  <button
+                    onClick={() => handleToggleFilter("Mutador de Juicio", mutesAggressive, setMutesAggressive)}
+                    className="flex items-center gap-2 focus:outline-none cursor-pointer"
+                  >
+                    <span className={`text-[10px] font-bold tracking-wide ${mutesAggressive ? "text-emerald-600" : "text-slate-400"}`}>
+                      {mutesAggressive ? "MUTADO (100%)" : "APAGADO"}
+                    </span>
+                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 ${mutesAggressive ? "bg-emerald-500" : "bg-slate-200"}`}>
+                      <div className={`w-3 h-3 rounded-full bg-white transition-transform duration-200 transform ${mutesAggressive ? "translate-x-4" : "translate-x-0"}`} />
+                    </div>
+                  </button>
+                </div>
+
+                {/* Filter 2 */}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 font-semibold">Motor Empático</span>
+                  <button
+                    onClick={() => handleToggleFilter("Motor Empático", empatheticMotor, setEmpatheticMotor)}
+                    className="flex items-center gap-2 focus:outline-none cursor-pointer"
+                  >
+                    <span className={`text-[10px] font-bold tracking-wide ${empatheticMotor ? "text-emerald-600" : "text-slate-400"}`}>
+                      {empatheticMotor ? "MÁXIMO" : "OFF"}
+                    </span>
+                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 ${empatheticMotor ? "bg-emerald-500" : "bg-slate-200"}`}>
+                      <div className={`w-3 h-3 rounded-full bg-white transition-transform duration-200 transform ${empatheticMotor ? "translate-x-4" : "translate-x-0"}`} />
+                    </div>
+                  </button>
+                </div>
+
+                {/* Filter 3 */}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 font-semibold">Corrector Sutil</span>
+                  <button
+                    onClick={() => handleToggleFilter("Corrector Sutil", softSuggestions, setSoftSuggestions)}
+                    className="flex items-center gap-2 focus:outline-none cursor-pointer"
+                  >
+                    <span className={`text-[10px] font-bold tracking-wide ${softSuggestions ? "text-emerald-600" : "text-slate-400"}`}>
+                      {softSuggestions ? "ACTIVO" : "INACTIVO"}
+                    </span>
+                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 ${softSuggestions ? "bg-emerald-500" : "bg-slate-200"}`}>
+                      <div className={`w-3 h-3 rounded-full bg-white transition-transform duration-200 transform ${softSuggestions ? "translate-x-4" : "translate-x-0"}`} />
+                    </div>
+                  </button>
+                </div>
+              </div>
             </div>
+
           </div>
 
         </div>
 
         {/* ================================= COL 2 & 3: CENTRO DE DIÁLOGO (Middle Chat) ================================= */}
-            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-[60vh] md:h-[680px] relative overflow-hidden">
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col h-[75vh] md:h-[700px] relative overflow-hidden">
           
           {/* Top Chat Header */}
           <div className="bg-slate-50/80 border-b border-slate-150 px-5 py-4 flex items-center justify-between">
@@ -831,6 +873,7 @@ export default function SafeZoneChat({ onBack }: Props) {
                 </div>
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Action Footer Bar */}
@@ -852,17 +895,17 @@ export default function SafeZoneChat({ onBack }: Props) {
             {/* Input keyboard and mic */}
             <div className="relative flex items-center gap-2">
               
-              {/* Mic Icon on the Left */}
+              {/* Mic Icon on the Left - Larger on mobile */}
               <button
                 onClick={handleToggleMicrophone}
-                className={`w-11 h-11 rounded-xl flex items-center justify-center border transition-all cursor-pointer ${
+                className={`w-12 h-12 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center border transition-all cursor-pointer shrink-0 ${
                   isRecording 
                     ? "bg-red-50 border-red-300 text-red-500 animate-pulse shadow-xs" 
                     : "bg-white border-slate-200 hover:border-[#4c4aca] text-slate-500 hover:text-[#4c4aca] shadow-xs"
                 }`}
                 title={isRecording ? "Escuchando... clic para detener" : "Entrada por voz (Dictado)"}
               >
-                <Mic size={18} className={isRecording ? "animate-bounce text-red-500" : ""} />
+                <Mic size={20} className={isRecording ? "animate-bounce text-red-500" : ""} />
               </button>
 
               {/* Text Field */}
@@ -872,17 +915,17 @@ export default function SafeZoneChat({ onBack }: Props) {
                 onChange={(e) => setUserInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSendMessage(userInput)}
                 disabled={loading}
-                placeholder={isRecording ? "Escuchando voz..." : "Práctica bilingüe sin miedo, exprésate libremente aquí..."}
-                className="flex-grow px-4 py-3 bg-white border border-slate-200 focus:border-[#4c4aca] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-100 transition-all text-slate-800 shadow-xs"
+                placeholder={isRecording ? "Escuchando voz..." : "Escribe o habla en inglés..."}
+                className="flex-grow px-4 py-3 bg-white border border-slate-200 focus:border-[#4c4aca] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-100 transition-all text-slate-800 shadow-xs min-w-0"
               />
 
               {/* Send Button on the Right */}
               <button
                 onClick={() => handleSendMessage(userInput)}
                 disabled={loading || !userInput.trim()}
-                className="px-4 py-3 rounded-xl bg-[#4c4aca] hover:bg-[#3b3a9e] text-white border-transparent flex items-center gap-2 text-xs font-bold tracking-wider transition-all disabled:opacity-40 cursor-pointer uppercase shadow-md hover:scale-105"
+                className="px-4 py-3 rounded-xl bg-[#4c4aca] hover:bg-[#3b3a9e] text-white border-transparent flex items-center gap-2 text-xs font-bold tracking-wider transition-all disabled:opacity-40 cursor-pointer uppercase shadow-md hover:scale-105 shrink-0"
               >
-                <span>ENVIAR</span>
+                <span className="hidden sm:inline">ENVIAR</span>
                 <Send size={13} />
               </button>
             </div>
@@ -892,9 +935,28 @@ export default function SafeZoneChat({ onBack }: Props) {
         </div>
 
         {/* ================================= COL 4: EVALUATION & COACHING HUD (Right) ================================= */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col justify-between space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col">
           
-          <div>
+          {/* Mobile Accordion Toggle Header */}
+          <button
+            onClick={() => setCoachingOpen(!coachingOpen)}
+            className="lg:hidden flex items-center justify-between w-full p-4 cursor-pointer hover:bg-slate-50 rounded-t-2xl transition-colors"
+          >
+            <span className="text-xs font-black tracking-widest text-[#4c4aca] uppercase flex items-center gap-1.5">
+              <Activity size={13} className="text-[#4c4aca]" />
+              EVALUATION & COACHING
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-400 font-mono font-bold">SYS_COACH</span>
+              <ChevronDown
+                size={16}
+                className={`text-slate-400 transition-transform duration-300 ${coachingOpen ? "rotate-180" : ""}`}
+              />
+            </div>
+          </button>
+
+          {/* Desktop Header */}
+          <div className="hidden lg:block p-5 pb-0">
             <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-2">
               <span className="text-xs font-black tracking-widest text-[#4c4aca] uppercase flex items-center gap-1.5">
                 <Activity size={13} className="text-[#4c4aca]" />
@@ -902,131 +964,138 @@ export default function SafeZoneChat({ onBack }: Props) {
               </span>
               <span className="text-[10px] text-slate-400 font-mono font-bold">SYS_COACH</span>
             </div>
+          </div>
 
-            {/* THE BRIDGE SCORE circular progression */}
-            <div className="bg-slate-50 rounded-xl p-5 border border-slate-100 text-center space-y-4 mb-6">
-              <span className="text-xs text-slate-600 font-extrabold tracking-wider block uppercase">
-                ⭐ THE BRIDGE SCORE
-              </span>
+          {/* Collapsible Content */}
+          <div className={`${coachingOpen ? "block" : "hidden"} lg:block p-5 pt-0 lg:pt-0 space-y-6`}>
+            
+            <div className="lg:pt-0 pt-4">
+              {/* THE BRIDGE SCORE circular progression */}
+              <div className="bg-slate-50 rounded-xl p-5 border border-slate-100 text-center space-y-4 mb-6">
+                <span className="text-xs text-slate-600 font-extrabold tracking-wider block uppercase">
+                  ⭐ THE BRIDGE SCORE
+                </span>
 
-              {/* Circular progress SVG */}
-              <div className="relative w-28 h-28 mx-auto flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle
-                    cx="56"
-                    cy="56"
-                    r="48"
-                    className="stroke-slate-200 fill-none"
-                    strokeWidth="8"
-                  />
-                  <circle
-                    cx="56"
-                    cy="56"
-                    r="48"
-                    className="stroke-emerald-500 fill-none transition-all duration-1000"
-                    strokeWidth="8"
-                    strokeDasharray={2 * Math.PI * 48}
-                    strokeDashoffset={2 * Math.PI * 48 * (1 - accentMatchScore / 100)}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-2xl font-black text-slate-800">{accentMatchScore}%</span>
-                  <span className="text-[8px] text-emerald-600 font-extrabold tracking-widest">ACCENT MATCH</span>
+                {/* Circular progress SVG */}
+                <div className="relative w-28 h-28 mx-auto flex items-center justify-center">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle
+                      cx="56"
+                      cy="56"
+                      r="48"
+                      className="stroke-slate-200 fill-none"
+                      strokeWidth="8"
+                    />
+                    <circle
+                      cx="56"
+                      cy="56"
+                      r="48"
+                      className="stroke-emerald-500 fill-none transition-all duration-1000"
+                      strokeWidth="8"
+                      strokeDasharray={2 * Math.PI * 48}
+                      strokeDashoffset={2 * Math.PI * 48 * (1 - accentMatchScore / 100)}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-2xl font-black text-slate-800">{accentMatchScore}%</span>
+                    <span className="text-[8px] text-emerald-600 font-extrabold tracking-widest">ACCENT MATCH</span>
+                  </div>
                 </div>
+
+                <p className="text-[10px] text-slate-500 font-semibold leading-relaxed">
+                  Nivel de adaptación con acento e inglés natural americano.
+                </p>
               </div>
 
-              <p className="text-[10px] text-slate-500 font-semibold leading-relaxed">
-                Nivel de adaptación con acento e inglés natural americano.
-              </p>
-            </div>
+              {/* Detailed Original vs Correction block */}
+              <div className="space-y-4">
+                <span className="text-[10px] text-slate-400 font-black tracking-wider block uppercase border-b border-slate-100 pb-1.5">
+                  🔍 ANÁLISIS DE CORRECCIÓN
+                </span>
 
-            {/* Detailed Original vs Correction block */}
-            <div className="space-y-4">
-              <span className="text-[10px] text-slate-400 font-black tracking-wider block uppercase border-b border-slate-100 pb-1.5">
-                🔍 ANÁLISIS DE CORRECCIÓN
-              </span>
-
-              {evaluation ? (
-                <div className="space-y-4 animate-fadeIn">
-                  
-                  {/* Status Indicator */}
-                  <div className="flex items-center gap-2">
-                    {evaluation.isCorrect ? (
-                      <span className="flex items-center gap-1.5 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 uppercase">
-                        <Check size={12} /> Gramática Correcta
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5 text-[10px] text-amber-700 font-bold bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 uppercase">
-                        <AlertCircle size={12} /> Corrección Sugerida
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Original text spoken */}
-                  <div>
-                    <h5 className="text-[10px] font-bold text-slate-400 uppercase">Texto Original escrito/hablado:</h5>
-                    <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-200/60 mt-1">
-                      <p className="text-xs text-slate-750 font-medium leading-relaxed">
-                        "{messages[messages.length - 2]?.role === "user" ? messages[messages.length - 2].content : messages[messages.length - 1]?.content}"
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Suggested Recommended Phrasing */}
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <h5 className="text-[10px] font-bold text-slate-400 uppercase">Sugerencia Recomendada:</h5>
-                      {evaluation.correctedText && (
-                        <button
-                          onClick={() => setShowCorrectedTranslation(!showCorrectedTranslation)}
-                          className="flex items-center gap-1.5 text-[9px] font-black tracking-wider text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100/70 px-2 py-1 rounded-md border border-emerald-200 cursor-pointer transition-all uppercase"
-                        >
-                          <Languages size={10} />
-                          {showCorrectedTranslation ? "Ocultar" : "Traducción"}
-                        </button>
+                {evaluation ? (
+                  <div className="space-y-4 animate-fadeIn">
+                    
+                    {/* Status Indicator */}
+                    <div className="flex items-center gap-2">
+                      {evaluation.isCorrect ? (
+                        <span className="flex items-center gap-1.5 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 uppercase">
+                          <Check size={12} /> Gramática Correcta
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-[10px] text-amber-700 font-bold bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 uppercase">
+                          <AlertCircle size={12} /> Corrección Sugerida
+                        </span>
                       )}
                     </div>
-                    <div className="bg-emerald-50 rounded-lg p-2.5 border border-emerald-200/50 mt-1">
-                      <p className="text-xs text-emerald-800 font-bold leading-relaxed">
-                        {evaluation.correctedText || "Perfect phrasing!"}
-                      </p>
-                      {showCorrectedTranslation && (
-                        <div className="mt-2 pt-2 border-t border-emerald-200 text-xs text-slate-700 font-sans italic leading-relaxed bg-white/80 p-2.5 rounded-md border border-emerald-100">
-                          {evaluation.correctedTextTranslation || `Traducción sugerida: "${evaluation.correctedText}"`}
-                        </div>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Coach Explanation */}
-                  <div>
-                    <h5 className="text-[10px] font-bold text-slate-400 uppercase">Explicación del Coach:</h5>
-                    <p className="text-xs text-slate-600 font-normal mt-1 leading-relaxed">
-                      {evaluation.explanation || "Your grammar looks solid! No sutil errors found."}
+                    {/* Original text spoken */}
+                    <div>
+                      <h5 className="text-[10px] font-bold text-slate-400 uppercase">Texto Original escrito/hablado:</h5>
+                      <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-200/60 mt-1">
+                        <p className="text-xs text-slate-750 font-medium leading-relaxed">
+                          "{messages[messages.length - 2]?.role === "user" ? messages[messages.length - 2].content : messages[messages.length - 1]?.content}"
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Suggested Recommended Phrasing */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-[10px] font-bold text-slate-400 uppercase">Sugerencia Recomendada:</h5>
+                        {evaluation.correctedText && (
+                          <button
+                            onClick={() => setShowCorrectedTranslation(!showCorrectedTranslation)}
+                            className="flex items-center gap-1.5 text-[9px] font-black tracking-wider text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100/70 px-2 py-1 rounded-md border border-emerald-200 cursor-pointer transition-all uppercase"
+                          >
+                            <Languages size={10} />
+                            {showCorrectedTranslation ? "Ocultar" : "Traducción"}
+                          </button>
+                        )}
+                      </div>
+                      <div className="bg-emerald-50 rounded-lg p-2.5 border border-emerald-200/50 mt-1">
+                        <p className="text-xs text-emerald-800 font-bold leading-relaxed">
+                          {evaluation.correctedText || "Perfect phrasing!"}
+                        </p>
+                        {showCorrectedTranslation && (
+                          <div className="mt-2 pt-2 border-t border-emerald-200 text-xs text-slate-700 font-sans italic leading-relaxed bg-white/80 p-2.5 rounded-md border border-emerald-100">
+                            {evaluation.correctedTextTranslation || `Traducción sugerida: "${evaluation.correctedText}"`}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Coach Explanation */}
+                    <div>
+                      <h5 className="text-[10px] font-bold text-slate-400 uppercase">Explicación del Coach:</h5>
+                      <p className="text-xs text-slate-600 font-normal mt-1 leading-relaxed">
+                        {evaluation.explanation || "Your grammar looks solid! No sutil errors found."}
+                      </p>
+                    </div>
+
+                  </div>
+                ) : (
+                  /* Empty state wait placeholder */
+                  <div className="text-center py-6 px-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl space-y-2">
+                    <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 mx-auto">
+                      <Sparkle size={14} className="animate-spin" />
+                    </div>
+                    <h5 className="text-xs font-bold text-slate-600">ESPERANDO MENSAJE</h5>
+                    <p className="text-[10px] text-slate-400 leading-relaxed font-semibold">
+                      Escribe tu mensaje o haz clic en un tema recomendado para recibir análisis gramatical y feedback de acento en tiempo real.
                     </p>
                   </div>
+                )}
+              </div>
 
-                </div>
-              ) : (
-                /* Empty state wait placeholder */
-                <div className="text-center py-6 px-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl space-y-2">
-                  <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 mx-auto">
-                    <Sparkle size={14} className="animate-spin" />
-                  </div>
-                  <h5 className="text-xs font-bold text-slate-600">ESPERANDO MENSAJE</h5>
-                  <p className="text-[10px] text-slate-400 leading-relaxed font-semibold">
-                    Escribe tu mensaje o haz clic en un tema recomendado para recibir análisis gramatical y feedback de acento en tiempo real.
-                  </p>
-                </div>
-              )}
             </div>
 
           </div>
 
           {/* Secure encryption watermark */}
-          <div className="text-center pt-2">
+          <div className="text-center p-4 pt-0">
             <span className="text-[9px] text-slate-400 font-bold tracking-widest block uppercase">
               🔐 SECURE COGNITIVE CHAT SANDBOX
             </span>
