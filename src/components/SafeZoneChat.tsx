@@ -513,7 +513,7 @@ export default function SafeZoneChat({ onBack }: Props) {
   return (
     <div 
       id="SafeZoneChat" 
-      className="w-full max-w-full bg-slate-50 text-slate-800 rounded-3xl p-4 sm:p-6 border border-slate-100 shadow-xl font-sans antialiased min-h-screen lg:min-h-0 relative"
+      className="w-full max-w-full bg-slate-50 text-slate-800 rounded-3xl p-3 sm:p-6 border border-slate-100 shadow-xl font-sans antialiased relative"
     >
       {/* Decorative corporate light grid backdrop */}
       <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:20px_20px] opacity-60 pointer-events-none rounded-3xl" />
@@ -741,7 +741,7 @@ export default function SafeZoneChat({ onBack }: Props) {
         </div>
 
         {/* ================================= COL 2 & 3: CENTRO DE DIÁLOGO (Middle Chat) ================================= */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-[680px] relative overflow-hidden">
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-[50vh] md:h-[680px] relative overflow-hidden">
           
           {/* Top Chat Header */}
           <div className="bg-slate-50/80 border-b border-slate-150 px-5 py-4 flex items-center justify-between">

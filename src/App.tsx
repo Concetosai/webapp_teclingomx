@@ -482,7 +482,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FBFBFD] text-[#1a1b1f] flex flex-col justify-between selection:bg-[#0058bc]/10">
+    <div className="h-dvh overflow-hidden bg-[#FBFBFD] text-[#1a1b1f] flex flex-col selection:bg-[#0058bc]/10">
       {/* Top Glassmorphic Navigation Bar */}
       <nav className="sticky top-0 w-full z-50 bg-white/85 dark:bg-[#0b0c0e]/85 backdrop-blur-xl border-b border-gray-100 dark:border-gray-800/80 shadow-xs transition-all duration-300">
         <div className="flex justify-between items-center px-4 md:px-12 py-3.5 max-w-7xl mx-auto gap-3">
@@ -900,7 +900,7 @@ export default function App() {
       </div>
 
       {/* Main Container */}
-      <main className="flex-grow py-12 px-6 md:px-12 max-w-7xl mx-auto w-full">
+      <main className="flex-1 overflow-y-auto py-6 px-4 md:px-12 md:py-12 max-w-7xl mx-auto w-full">
         {/* Render drill down lab or general tab panel */}
         {currentLab === "pronunciation" ? (
           <PronunciationLab onBack={handleExitLab} />
@@ -982,7 +982,7 @@ export default function App() {
               {CARDS.map((card, idx) => (
                 <div 
                   key={card.id}
-                  className="card-hover apple-fade-in group relative h-[420px] rounded-3xl overflow-hidden bg-white dark:bg-[#15161a] border border-gray-100 dark:border-gray-800/80 flex flex-col justify-between"
+                  className="card-hover apple-fade-in group relative h-auto min-h-[320px] md:h-[420px] rounded-3xl overflow-hidden bg-white dark:bg-[#15161a] border border-gray-100 dark:border-gray-800/80 flex flex-col justify-between"
                   style={{ animationDelay: `${(idx + 1) * 0.05}s` }}
                 >
                   {/* Decorative illustrative header area */}
@@ -1017,7 +1017,7 @@ export default function App() {
       </main>
 
       {/* Footer Area matches Design guidelines */}
-      <footer className="w-full bg-white dark:bg-[#0b0c0e] border-t border-gray-100 dark:border-gray-800/80 mt-16 py-12">
+      <footer className="w-full bg-white dark:bg-[#0b0c0e] border-t border-gray-100 dark:border-gray-800/80 py-8 md:py-12 shrink-0">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center px-6 md:px-12 max-w-7xl mx-auto gap-8">
           <div className="space-y-2.5">
             <div className="flex items-center gap-2">

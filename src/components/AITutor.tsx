@@ -68,7 +68,7 @@ export default function AITutor({ onBack }: Props) {
   };
 
   return (
-    <div id="AITutor" className="apple-fade-in max-w-5xl mx-auto bg-white rounded-3xl overflow-hidden shadow-xl border border-gray-100 p-8">
+    <div id="AITutor" className="apple-fade-in max-w-5xl mx-auto bg-white rounded-3xl overflow-hidden shadow-xl border border-gray-100 p-4 md:p-8">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
         <button 

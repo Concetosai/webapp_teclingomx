@@ -533,6 +533,16 @@ function doPost(e) {
     let respuesta = {};
     
     switch(accion) {
+      case 'loginGoogle':
+        respuesta = guardarUsuario({
+          nombre: params.nombre,
+          email: params.email,
+          nivel: 'A1',
+          progreso: '0',
+          plan: 'Basic'
+        });
+        break;
+        
       case 'guardarUsuario':
         respuesta = guardarUsuario(params.datos);
         break;

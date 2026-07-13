@@ -1079,7 +1079,7 @@ export default function PronunciationLab({ onBack }: Props) {
   };
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-[#aec4ec] via-[#dfdef8] to-[#f2daf1] p-4 md:p-8 flex items-center justify-center relative">
+    <div className="w-full bg-gradient-to-br from-[#aec4ec] via-[#dfdef8] to-[#f2daf1] p-3 md:p-8 flex items-start md:items-center justify-center relative">
       {/* Decorative star sparkle on bottom-right matching the screenshot */}
       <div className="absolute bottom-16 right-16 text-white/40 pointer-events-none select-none hidden lg:block">
         <svg className="w-16 h-16 fill-current animate-pulse" viewBox="0 0 24 24">
@@ -1087,7 +1087,7 @@ export default function PronunciationLab({ onBack }: Props) {
         </svg>
       </div>
 
-      <div id="PronunciationLab" className="apple-fade-in w-full max-w-6xl bg-white/70 backdrop-blur-2xl rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-white/80 p-6 md:p-10 relative">
+      <div id="PronunciationLab" className="apple-fade-in w-full max-w-6xl bg-white/70 backdrop-blur-2xl rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-white/80 p-4 md:p-10 relative">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Left Side: Preset selection and custom typing */}
           <div className="lg:col-span-4 flex flex-col gap-5">
