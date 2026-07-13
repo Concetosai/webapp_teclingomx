@@ -1239,8 +1239,20 @@ The JSON response MUST exactly match the following JSON schema:
       if ((!spokenText || spokenText.trim() === "") && audio && process.env.GROQ_API_KEY) {
         try {
           console.log(`[Pronunciation Feedback] No spokenText, transcribing audio with Groq Whisper...`);
+          console.log(`[Pronunciation Feedback] Received mimeType: "${mimeType}"`);
           const audioBuffer = Buffer.from(audio, "base64");
-          const audioFile = new File([audioBuffer], "recording.webm", { type: mimeType || "audio/webm" });
+          console.log(`[Pronunciation Feedback] Audio buffer size: ${audioBuffer.length} bytes`);
+          
+          // Determine correct file extension and MIME type based on actual format
+          const ext = (mimeType || "audio/webm").includes("ogg") ? "ogg"
+            : (mimeType || "").includes("mp4") ? "mp4"
+            : (mimeType || "").includes("wav") ? "wav"
+            : "webm";
+          const fileName = `recording.${ext}`;
+          const fileMimeType = mimeType || "audio/webm";
+          
+          console.log(`[Pronunciation Feedback] Creating File: name=${fileName}, type=${fileMimeType}`);
+          const audioFile = new File([audioBuffer], fileName, { type: fileMimeType });
           const transcription = await groq.audio.transcriptions.create({
             file: audioFile,
             model: "whisper-large-v3",
