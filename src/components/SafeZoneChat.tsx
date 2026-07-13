@@ -741,7 +741,7 @@ export default function SafeZoneChat({ onBack }: Props) {
         </div>
 
         {/* ================================= COL 2 & 3: CENTRO DE DIÁLOGO (Middle Chat) ================================= */}
-            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-[50vh] md:h-[680px] relative overflow-hidden">
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-[60vh] md:h-[680px] relative overflow-hidden">
           
           {/* Top Chat Header */}
           <div className="bg-slate-50/80 border-b border-slate-150 px-5 py-4 flex items-center justify-between">

@@ -482,10 +482,10 @@ export default function App() {
   }
 
   return (
-    <div className="h-dvh overflow-hidden bg-[#FBFBFD] text-[#1a1b1f] flex flex-col selection:bg-[#0058bc]/10">
+    <div className="min-h-screen bg-[#FBFBFD] text-[#1a1b1f] overflow-x-hidden selection:bg-[#0058bc]/10">
       {/* Top Glassmorphic Navigation Bar */}
       <nav className="sticky top-0 w-full z-50 bg-white/85 dark:bg-[#0b0c0e]/85 backdrop-blur-xl border-b border-gray-100 dark:border-gray-800/80 shadow-xs transition-all duration-300">
-        <div className="flex justify-between items-center px-4 md:px-12 py-3.5 max-w-7xl mx-auto gap-3">
+        <div className="flex justify-between items-center px-3 md:px-12 py-2.5 md:py-3.5 max-w-7xl mx-auto gap-3">
           {/* Logo */}
           <div 
             onClick={() => { setActiveTab("dashboard"); setCurrentLab(null); }}
@@ -900,7 +900,7 @@ export default function App() {
       </div>
 
       {/* Main Container */}
-      <main className="flex-1 overflow-y-auto py-6 px-4 md:px-12 md:py-12 max-w-7xl mx-auto w-full">
+      <main className="flex-grow py-6 px-4 md:py-12 md:px-12 max-w-7xl mx-auto w-full">
         {/* Render drill down lab or general tab panel */}
         {currentLab === "pronunciation" ? (
           <PronunciationLab onBack={handleExitLab} />
@@ -1017,7 +1017,7 @@ export default function App() {
       </main>
 
       {/* Footer Area matches Design guidelines */}
-      <footer className="w-full bg-white dark:bg-[#0b0c0e] border-t border-gray-100 dark:border-gray-800/80 py-8 md:py-12 shrink-0">
+      <footer className="w-full bg-white dark:bg-[#0b0c0e] border-t border-gray-100 dark:border-gray-800/80 mt-8 md:mt-16 py-8 md:py-12">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center px-6 md:px-12 max-w-7xl mx-auto gap-8">
           <div className="space-y-2.5">
             <div className="flex items-center gap-2">
