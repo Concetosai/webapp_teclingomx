@@ -408,7 +408,7 @@ export default function SafeZoneChat({ onBack }: Props) {
       };
 
       mediaRecorder.onstop = async () => {
-        addHudLog("VOICE_INPUT: Audio recording captured. Querying Gemini phonetic analyzer...");
+        addHudLog("VOICE_INPUT: Audio captured. Sending to transcription engine...");
         const finalMimeType = mimeType || "audio/webm";
         const audioBlob = new Blob(audioChunksRef.current, { type: finalMimeType });
         
@@ -416,14 +416,15 @@ export default function SafeZoneChat({ onBack }: Props) {
         reader.readAsDataURL(audioBlob);
         reader.onloadend = async () => {
           const base64Audio = (reader.result as string).split(",")[1];
-          const textToEvaluate = userInput.trim() || "I think English is very fun and interactive when practicing with you.";
+          const targetText = userInput.trim() || "I think English is very fun and interactive when practicing with you.";
           
           try {
+            addHudLog("VOICE_INPUT: Querying Whisper transcription...");
             const res = await fetch("/api/gemini/pronunciation-feedback", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                text: textToEvaluate,
+                text: targetText,
                 audio: base64Audio,
                 mimeType: finalMimeType
               })
@@ -432,39 +433,101 @@ export default function SafeZoneChat({ onBack }: Props) {
             if (!res.ok) throw new Error("Pronunciation feedback API error");
             const data = await res.json();
             
+            // Get the actual transcribed text from Whisper
+            const transcribedText = data.transcription || "";
+            
+            if (transcribedText && transcribedText.trim()) {
+              addHudLog(`VOICE_INPUT: Whisper transcribed: "${transcribedText}"`);
+              // Update input field with what was actually spoken
+              setUserInput(transcribedText);
+              
+              // Auto-send the transcribed text as a user message in the chat
+              const spokenMsg: ChatMessage = {
+                id: Math.random().toString(),
+                role: "user",
+                content: transcribedText,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              };
+              setMessages(prev => [...prev, spokenMsg]);
+              
+              // Get Aura's response to what the user said
+              setLoading(true);
+              try {
+                const currentHistory = [...messages, spokenMsg].map(m => ({
+                  role: m.role,
+                  content: m.content
+                }));
+                const customBehaviorRaw = localStorage.getItem("teclingo_secret_behavior");
+                let customSystemInstruction = "";
+                let customAppMasterInfo = "";
+                if (customBehaviorRaw) {
+                  try {
+                    const parsed = JSON.parse(customBehaviorRaw);
+                    customSystemInstruction = parsed.systemInstruction || "";
+                    customAppMasterInfo = parsed.appMasterInfo || "";
+                  } catch (e) {}
+                }
+                const chatRes = await fetch("/api/gemini/chat", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    messages: currentHistory,
+                    scenario: "Casual conversational sandbox cockpit with friendly AI Aura.",
+                    conversationMode,
+                    customSystemInstruction,
+                    customAppMasterInfo
+                  })
+                });
+                if (chatRes.ok) {
+                  const chatData = await chatRes.json();
+                  const auraMsg: ChatMessage = {
+                    id: Math.random().toString(),
+                    role: "model",
+                    content: chatData.reply || chatData.response || "I heard you! Let's keep practicing.",
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  };
+                  setMessages(prev => [...prev, auraMsg]);
+                  speakText(auraMsg.content, voiceSpeed === "lenta");
+                }
+              } catch (chatErr) {
+                console.error("Chat response after voice failed:", chatErr);
+              } finally {
+                setLoading(false);
+              }
+            } else {
+              addHudLog("VOICE_INPUT: No speech detected in audio.");
+              setUserInput("(No se detectó voz)");
+            }
+            
+            // Update evaluation score
             const newScore = data.score || 78;
             setAccentMatchScore(newScore);
             if (!isLocked) {
               setConfidence(newScore);
-              addHudLog(`BRIDGE: Pronunciation score: ${newScore}%. Synced Dialog Confidence slider.`);
-            } else {
-              addHudLog(`BRIDGE: Pronunciation score: ${newScore}%. Slider is locked manually (value kept at ${confidence}%).`);
+              addHudLog(`BRIDGE: Pronunciation score: ${newScore}%.`);
             }
 
             setEvaluation({
               isCorrect: newScore >= 80,
-              correctedText: data.transcription || textToEvaluate,
+              correctedText: data.transcription || targetText,
               detectedErrors: data.tips || "",
               explanation: `${data.feedback || "Excellent pronunciation!"} \n\nTip: ${data.tips || ""}`
             });
           } catch (err: any) {
             console.error("Pronunciation API failed:", err);
-            addHudLog("SYS_WARN: Pronunciation API failed. Running phonetic simulation fallback.");
+            addHudLog("SYS_WARN: Transcription API failed.");
             
             const simulatedScore = Math.floor(75 + Math.random() * 20);
             setAccentMatchScore(simulatedScore);
             if (!isLocked) {
               setConfidence(simulatedScore);
-              addHudLog(`BRIDGE_SIM: Score: ${simulatedScore}%. Synced Dialog Confidence slider.`);
-            } else {
-              addHudLog(`BRIDGE_SIM: Score: ${simulatedScore}%. Slider is locked manually (value kept at ${confidence}%).`);
             }
 
             setEvaluation({
               isCorrect: simulatedScore >= 82,
-              correctedText: textToEvaluate,
+              correctedText: targetText,
               detectedErrors: "Ligeros desfases de entonacion.",
-              explanation: `Tu voz de "${textToEvaluate}" suena bastante fluida y natural. \n\nTip: Intenta modular las silabas acentuadas con mayor fuerza.`
+              explanation: `Tu pronunciacion suena bastante fluida. \n\nTip: Intenta modular las silabas acentuadas con mayor fuerza.`
             });
           }
         };

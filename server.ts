@@ -1267,9 +1267,11 @@ The JSON response MUST exactly match the following JSON schema:
 
       // Capa de Transcripción (Filtro de Integridad de Contenido Backend V2.0)
       const similarity = calculateSimilarity(spokenText || "", text);
-      console.log(`[Pronunciation Feedback] Spoken: "${spokenText || ''}" | Target: "${text}" | Similarity: ${(similarity * 100).toFixed(1)}%`);
+      const isDefaultTarget = text === "I think English is very fun and interactive when practicing with you.";
+      console.log(`[Pronunciation Feedback] Spoken: "${spokenText || ''}" | Target: "${text}" | Similarity: ${(similarity * 100).toFixed(1)}% | isDefaultTarget: ${isDefaultTarget}`);
 
-      if (similarity < 0.70) {
+      // Only enforce similarity check if user explicitly typed a target phrase
+      if (!isDefaultTarget && similarity < 0.70) {
         const fallbackScore = Math.floor(Math.random() * 5) + 12; // 12% to 16%
         return res.json({
           score: fallbackScore,
