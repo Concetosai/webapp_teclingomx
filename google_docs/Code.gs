@@ -524,11 +524,26 @@ function registrarActividad(tipo, detalle) {
  * Recibe las acciones del frontend y las enruta a las funciones correspondientes
  */
 function doPost(e) {
+  // CORS headers
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type'
+  };
+
+  // Handle preflight
+  if (e.parameter && e.parameter.method === 'OPTIONS') {
+    return ContentService
+      .createTextOutput('')
+      .setMimeType(ContentService.MimeType.JSON)
+      .setHeader('Access-Control-Allow-Origin', '*');
+  }
+
   try {
     const params = JSON.parse(e.postData.contents);
     const accion = params.accion;
     
-    console.log(`[Teclingo API] Acción: ${accion}`);
+    console.log(`[Teclingo API] Accion: ${accion}`);
     
     let respuesta = {};
     
@@ -557,6 +572,11 @@ function doPost(e) {
         
       case 'registrarPronunciacion':
         respuesta = registrarPronunciacion(params.datos);
+        break;
+        
+      case 'registrarActividad':
+        registrarActividad(params.datos.tipo || 'activity', params.datos.detalle || '');
+        respuesta = { success: true, mensaje: 'Actividad registrada.' };
         break;
         
       case 'enviarBienvenida':
@@ -596,7 +616,8 @@ function doPost(e) {
     
     return ContentService
       .createTextOutput(JSON.stringify(respuesta))
-      .setMimeType(ContentService.MimeType.JSON);
+      .setMimeType(ContentService.MimeType.JSON)
+      .setHeader('Access-Control-Allow-Origin', '*');
       
   } catch (error) {
     console.error('Error en doPost:', error);

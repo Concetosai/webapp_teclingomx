@@ -60,6 +60,7 @@ import SettingsPanel from "./components/SettingsPanel";
 import DynamicCarousel from "./components/DynamicCarousel";
 import ChatTutor from "./components/ChatTutor";
 import ActionStack from "./components/ActionStack";
+import { saveGrammarLog, saveTOEFLScore, savePronunciationResult, saveActivity } from "./services/sheetsService";
 
 interface SavedVocab {
   term: string;
@@ -311,12 +312,21 @@ export default function App() {
     const updatedScores = { ...userStats.toeflScores, [section]: score };
     const newStats = { ...userStats, toeflScores: updatedScores };
     saveStats(newStats);
+    // Persist to Google Sheets
+    saveTOEFLScore({ seccion: section, puntaje: score, nivel: 'B1' });
   };
 
   const handleLogGrammarAccuracy = (errorsCount: number) => {
     const newCount = (userStats.grammarChecks || 0) + 1;
     const newStats = { ...userStats, grammarChecks: newCount };
     saveStats(newStats);
+    // Persist to Google Sheets
+    saveGrammarLog({
+      textoOriginal: `Grammar check #${newCount}`,
+      erroresEncontrados: errorsCount,
+      textoCorregido: errorsCount === 0 ? 'Sin errores' : `${errorsCount} errores detectados`,
+      nivel: 'B1'
+    });
   };
 
   // 8 Lab cards metadata matching the design guidelines exactly
@@ -425,6 +435,8 @@ export default function App() {
     }
 
     saveStats(updatedStats);
+    // Persist activity to Google Sheets
+    saveActivity('lab_entry', `Entered ${labId} - Practice #${updatedStats.totalPractices}`);
   };
 
   const handleExitLab = () => {
@@ -903,7 +915,7 @@ export default function App() {
       <main className="flex-grow py-6 px-4 md:py-12 md:px-12 max-w-7xl mx-auto w-full">
         {/* Render drill down lab or general tab panel */}
         {currentLab === "pronunciation" ? (
-          <PronunciationLab onBack={handleExitLab} />
+          <PronunciationLab onBack={handleExitLab} onLogPronunciation={(palabra, puntaje, feedback) => savePronunciationResult({ palabra, puntaje, feedback })} />
         ) : currentLab === "listening" ? (
           <ListeningLab onBack={handleExitLab} onSaveVocabulary={handleSaveVocabulary} />
         ) : currentLab === "chat" ? (

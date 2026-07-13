@@ -17,6 +17,7 @@ import { useGoogleTTS } from "../hooks/useGoogleTTS";
 
 interface Props {
   onBack: () => void;
+  onLogPronunciation?: (palabra: string, puntaje: number, feedback: string) => void;
 }
 
 const PRESET_PHRASES = [
@@ -366,7 +367,7 @@ const isSpanish = (text: string): boolean => {
   return words.some(w => spanishWords.has(w));
 };
 
-export default function PronunciationLab({ onBack }: Props) {
+export default function PronunciationLab({ onBack, onLogPronunciation }: Props) {
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedWord, setSelectedWord] = useState<string | null>("Comfortable");
@@ -657,6 +658,10 @@ export default function PronunciationLab({ onBack }: Props) {
         const data = await response.json();
         // Only override if the user hasn't switched to a different word in the meantime
         setResult(data);
+        // Log to Google Sheets
+        if (onLogPronunciation) {
+          onLogPronunciation(cleanText, data.score || 0, data.feedback || '');
+        }
       }
     } catch (err) {
       console.error("API error, using high-fidelity fallback:", err);
